@@ -1,258 +1,338 @@
 import board
 import time
+import json
 import terminalio
 import displayio
+import os
+import supervisor
 from adafruit_matrixportal.matrixportal import MatrixPortal
-from adafruit_display_text.label import Label
+
+print("Starting up...")
 
 # Configuration variables
-COUNTDOWN_SECONDS = 15  # Total countdown time in seconds
-FINAL_COUNTDOWN = 10    # When to start running ants animation
-DISPLAY_TEXT = "COUNTDOWN"  # Text to display above timer
-STOPWATCH_TEXT = "STOPWATCH"  # Text to display during stopwatch mode
-DISPLAY_WIDTH = 64  # Matrix display width in pixels
+DISPLAY_WIDTH = 64
+DISPLAY_HEIGHT = 32
+TEST_FILE = "test_trigger.json"
 DONE_DISPLAY_TIME = 10  # How long to show "DONE" message
+FINAL_COUNTDOWN = 10    # When to start running ants animation
+STOPWATCH_TEXT = "STOPWATCH"  # Text to display during stopwatch mode
 
-def center_text_position(text, font):
-    """Calculate x position to center text
-    Args:
-        text (str): Text to center
-        font: Font object to use for width calculation
-    Returns:
-        int: x position for centered text
-    """
-    text_width = len(text) * 6  # Each character is typically 6 pixels wide in terminalio font
-    return (DISPLAY_WIDTH - text_width) // 2
+# Colors
+RED = 0xFF0000
+WHITE = 0xFFFFFF
+BLACK = 0x000000
 
-def set_dashed_border(top_border, bottom_border, left_border, right_border):
-    """Set normal dashed border
-    Args:
-        top_border (list): List of Label objects for top border
-        bottom_border (list): List of Label objects for bottom border
-        left_border (list): List of Label objects for left border
-        right_border (list): List of Label objects for right border
-    """
-    for label in top_border + bottom_border:
-        label.text = "-"
-    for label in left_border + right_border:
-        label.text = "|"
+class CountdownDisplay:
+    def __init__(self):
+        print("Initializing display...")
+        try:
+            self.matrixportal = MatrixPortal(
+                status_neopixel=board.NEOPIXEL,
+                debug=True
+            )
+            print("MatrixPortal initialized")
+            
+            # Create a bitmap for the border
+            self.border_bitmap = displayio.Bitmap(DISPLAY_WIDTH, DISPLAY_HEIGHT, 2)
+            self.border_palette = displayio.Palette(2)
+            self.border_palette[0] = BLACK  # Background
+            self.border_palette[1] = RED    # Border color
+            
+            # Create a TileGrid using the bitmap and palette
+            self.border_grid = displayio.TileGrid(
+                self.border_bitmap,
+                pixel_shader=self.border_palette
+            )
+            
+            # Create a group for the border
+            self.border_group = displayio.Group()
+            self.border_group.append(self.border_grid)
+            
+            # Add border group to the display
+            self.matrixportal.display.root_group.append(self.border_group)
+            
+            # Set up the display
+            self.setup_display()
+            print("Display setup complete")
+            
+        except Exception as e:
+            print("Error during initialization:", str(e))
+            raise
+        
+    def setup_display(self):
+        """Initialize the display and create all necessary labels"""
+        try:
+            # Clear the display first
+            self.matrixportal.set_background(BLACK)
+            
+            # Add title label (centered at y=8)
+            self.title_label = self.matrixportal.add_text(
+                text_position=(17, 8),  # Fixed position for better centering
+                text_font=terminalio.FONT,
+                text_color=WHITE,
+                text="READY"
+            )
+            
+            # Add timer label (centered at y=20)
+            self.timer_label = self.matrixportal.add_text(
+                text_position=(22, 20),  # Fixed position for better centering
+                text_font=terminalio.FONT,
+                text_color=WHITE,
+                text="--:--"
+            )
+            
+            # Initialize text tracking variables
+            self.current_title_text = "READY"
+            self.current_timer_text = "--:--"
+            
+            # Initialize other variables
+            self.last_check = time.monotonic()
+            self.last_update = time.monotonic()
+            self.current_countdown = None
+            self.animation_step = 0
+            self.stopwatch_start = None
+            
+            # Draw initial border
+            self.set_dashed_border()
+            
+        except Exception as e:
+            print("Error in setup_display:", str(e))
+            raise
 
-def set_solid_border(top_border, bottom_border, left_border, right_border):
-    """Set solid border
-    Args:
-        top_border (list): List of Label objects for top border
-        bottom_border (list): List of Label objects for bottom border
-        left_border (list): List of Label objects for left border
-        right_border (list): List of Label objects for right border
-    """
-    for label in top_border + bottom_border:
-        label.text = "-"  # Single dash for each label
-    for label in left_border + right_border:
-        label.text = "|"
+    def draw_border_pixel(self, x, y, on=True):
+        """Draw a single border pixel"""
+        if 0 <= x < DISPLAY_WIDTH and 0 <= y < DISPLAY_HEIGHT:
+            self.border_bitmap[x, y] = 1 if on else 0
 
-def set_animated_border(step, top_border, bottom_border, left_border, right_border):
-    """Set animated border pattern based on step
-    Args:
-        step (int): Animation step (0 or 1)
-        top_border (list): List of Label objects for top border
-        bottom_border (list): List of Label objects for bottom border
-        left_border (list): List of Label objects for left border
-        right_border (list): List of Label objects for right border
-    """
-    for i in range(len(top_border)):
-        top_border[i].text = "-" if (i + step) % 2 == 0 else " "
-        bottom_border[i].text = "-" if (i + step) % 2 == 0 else " "
-    
-    for i in range(len(left_border)):
-        left_border[i].text = "|" if (i + step) % 2 == 0 else " "
-        right_border[i].text = "|" if (i + step) % 2 == 0 else " "
+    def set_dashed_border(self):
+        """Set normal dashed border"""
+        # Clear previous border
+        for i in range(DISPLAY_WIDTH):
+            for j in range(DISPLAY_HEIGHT):
+                self.border_bitmap[i, j] = 0
+                
+        # Draw top and bottom edges
+        for x in range(DISPLAY_WIDTH):
+            self.draw_border_pixel(x, 0)  # Top
+            self.draw_border_pixel(x, DISPLAY_HEIGHT-1)  # Bottom
+            
+        # Draw left and right edges
+        for y in range(DISPLAY_HEIGHT):
+            self.draw_border_pixel(0, y)  # Left
+            self.draw_border_pixel(DISPLAY_WIDTH-1, y)  # Right
 
-def set_blinking_border(step, top_border, bottom_border, left_border, right_border):
-    """Set blinking border - all on or all off
-    Args:
-        step (int): Animation step (0 or 1)
-        top_border (list): List of Label objects for top border
-        bottom_border (list): List of Label objects for bottom border
-        left_border (list): List of Label objects for left border
-        right_border (list): List of Label objects for right border
-    """
-    char = "-" if step == 1 else " "
-    vert_char = "|" if step == 1 else " "
-    
-    for label in top_border + bottom_border:
-        label.text = char
-    for label in left_border + right_border:
-        label.text = vert_char
+    def set_animated_border(self):
+        """Set animated border pattern"""
+        self.animation_step = (self.animation_step + 1) % 2
+        
+        # Clear previous border
+        for i in range(DISPLAY_WIDTH):
+            for j in range(DISPLAY_HEIGHT):
+                self.border_bitmap[i, j] = 0
+        
+        # Draw animated border
+        for i in range(DISPLAY_WIDTH + DISPLAY_HEIGHT * 2):
+            if (i + self.animation_step) % 2 == 0:
+                if i < DISPLAY_WIDTH:
+                    # Top edge
+                    self.draw_border_pixel(i, 0)
+                    # Bottom edge
+                    self.draw_border_pixel(i, DISPLAY_HEIGHT-1)
+                else:
+                    pos = i - DISPLAY_WIDTH
+                    if pos < DISPLAY_HEIGHT:
+                        # Right edge
+                        self.draw_border_pixel(DISPLAY_WIDTH-1, pos)
+                    else:
+                        # Left edge
+                        self.draw_border_pixel(0, pos - DISPLAY_HEIGHT)
 
-print("Starting countdown test...")
+    def set_solid_border(self):
+        """Set solid border"""
+        self.set_dashed_border()  # Same as dashed for now
 
+    def set_blinking_border(self):
+        """Set blinking border"""
+        if self.animation_step == 0:
+            self.set_dashed_border()
+        else:
+            # Clear all border pixels
+            for i in range(DISPLAY_WIDTH):
+                for j in range(DISPLAY_HEIGHT):
+                    self.border_bitmap[i, j] = 0
+        self.animation_step = (self.animation_step + 1) % 2
+
+    def center_text_position(self, text):
+        """Calculate x position to center text"""
+        # Each character is 5 pixels wide in terminalio font
+        text_width = len(text) * 5
+        return (DISPLAY_WIDTH - text_width) // 2
+
+    def update_text_display(self, text, label_index, y_position):
+        """Update text and ensure it's centered"""
+        # Simple text update
+        self.matrixportal.set_text(text, label_index)
+
+    def check_test_trigger(self):
+        """Check for test trigger file"""
+        try:
+            current_time = time.monotonic()
+            if current_time - self.last_check < 1:  # Check once per second
+                return None
+                
+            self.last_check = current_time
+            
+            if TEST_FILE in os.listdir():
+                print("Found test file")
+                try:
+                    with open(TEST_FILE, "r") as f:
+                        content = f.read()
+                        print("Raw file content:", content)
+                        data = json.loads(content)
+                        print("Parsed JSON:", data)
+                    
+                    try:
+                        os.remove(TEST_FILE)
+                        print("Test file removed successfully")
+                    except Exception as e:
+                        print("Error removing test file:", str(e))
+                    
+                    return data
+                except json.JSONDecodeError as e:
+                    print("JSON decode error:", str(e))
+                except Exception as e:
+                    print("Error reading test file:", str(e))
+        except Exception as e:
+            print("Error checking trigger:", str(e))
+        return None
+
+    def start_countdown(self, name, duration):
+        """Start a new countdown"""
+        try:
+            print(f"Starting countdown: {name} for {duration} seconds")
+            
+            # Validate inputs
+            if not isinstance(duration, (int, float)):
+                print(f"Invalid duration type: {type(duration)}")
+                return
+                
+            if duration <= 0:
+                print("Duration must be positive")
+                return
+            
+            self.current_countdown = {
+                "name": name,
+                "duration": float(duration),
+                "start_time": time.monotonic()
+            }
+            print("Countdown object created:", self.current_countdown)
+            
+            # Update display with centered text
+            self.update_text_display(str(name), self.title_label, 8)
+            print("Display updated with new countdown")
+            
+            # Reset stopwatch
+            self.stopwatch_start = None
+            
+        except Exception as e:
+            print("Error starting countdown:", str(e))
+
+    def update_stopwatch(self):
+        """Update stopwatch display"""
+        try:
+            current_time = time.monotonic()
+            
+            if self.stopwatch_start is None:
+                self.stopwatch_start = current_time
+                self.last_update = current_time
+                self.update_text_display(STOPWATCH_TEXT, self.title_label, 8)
+            
+            # Update display every second
+            if current_time - self.last_update >= 1.0:
+                elapsed = int(current_time - self.stopwatch_start)
+                minutes = elapsed // 60
+                seconds = elapsed % 60
+                timer_text = f"{minutes:02d}:{seconds:02d}"
+                self.update_text_display(timer_text, self.timer_label, 20)
+                self.last_update = current_time
+                
+                # Update border every second (on the same timing as the text)
+                self.set_blinking_border()
+            
+        except Exception as e:
+            print("Error updating stopwatch:", str(e))
+
+    def update(self):
+        """Main update loop"""
+        try:
+            if self.current_countdown is None and self.stopwatch_start is None:
+                trigger = self.check_test_trigger()
+                if trigger:
+                    print("Trigger detected:", trigger)
+                    self.start_countdown(trigger["name"], trigger["duration"])
+                return
+
+            current_time = time.monotonic()
+
+            if self.current_countdown is not None:
+                elapsed = current_time - self.current_countdown["start_time"]
+                remaining = max(0, self.current_countdown["duration"] - elapsed)
+
+                if remaining > 0:
+                    # Update display every second
+                    if current_time - self.last_update >= 1.0:
+                        minutes = int(remaining) // 60
+                        seconds = int(remaining) % 60
+                        timer_text = f"{minutes:02d}:{seconds:02d}"
+                        self.update_text_display(timer_text, self.timer_label, 20)
+                        self.current_timer_text = timer_text
+                        self.last_update = current_time
+                    
+                    # Update borders based on remaining time
+                    if remaining <= FINAL_COUNTDOWN:
+                        if current_time - self.last_check >= 0.2:  # Animation timing
+                            self.set_animated_border()
+                            self.last_check = current_time
+                    # Don't update border if not in final countdown
+                else:
+                    print("Countdown finished")
+                    self.update_text_display("DONE", self.timer_label, 20)
+                    self.current_timer_text = "DONE"
+                    self.set_solid_border()  # Set border once when showing DONE
+                    time.sleep(DONE_DISPLAY_TIME)
+                    
+                    # Switch to stopwatch mode
+                    self.current_countdown = None
+                    self.update_stopwatch()
+            else:
+                # In stopwatch mode
+                self.update_stopwatch()
+                
+            # Small delay to prevent too frequent updates
+            time.sleep(0.05)
+                
+        except Exception as e:
+            print("Error in update:", str(e))
+
+    def run(self):
+        """Main run loop"""
+        print("Starting main loop...")
+        while True:
+            try:
+                self.update()
+                time.sleep(0.1)
+            except Exception as e:
+                print("Error in main loop:", str(e))
+                time.sleep(5)
+
+# Enable serial output
 try:
-    # Initialize the MatrixPortal
-    print("Initializing MatrixPortal...")
-    matrixportal = MatrixPortal()
-    print("MatrixPortal initialized")
+    supervisor.runtime.serial_connected = True
+except:
+    pass
 
-    # First set background to black
-    print("Setting black background...")
-    matrixportal.set_background(0x000000)
-    print("Background set")
-
-    # Create a display group
-    group = displayio.Group()
-    
-    # Define colors
-    red = 0xFF0000
-    white = 0xFFFFFF
-    
-    # Store border labels in lists for animation
-    top_border = []
-    bottom_border = []
-    left_border = []
-    right_border = []
-    
-    # Top border - create more labels with single-character spacing
-    for x in range(16):  # More labels for complete coverage
-        text_label = Label(
-            terminalio.FONT,
-            text="-",
-            color=red,
-            x=x*4,  # Tighter spacing (4 pixels between each)
-            y=0
-        )
-        group.append(text_label)
-        top_border.append(text_label)
-    
-    # Bottom border - create more labels with single-character spacing
-    for x in range(16):  # More labels for complete coverage
-        text_label = Label(
-            terminalio.FONT,
-            text="-",
-            color=red,
-            x=x*4,  # Tighter spacing (4 pixels between each)
-            y=31
-        )
-        group.append(text_label)
-        bottom_border.append(text_label)
-        
-    # Left border
-    for y in range(4):  # 4 vertical characters
-        text_label = Label(
-            terminalio.FONT,
-            text="|",
-            color=red,
-            x=-2,  # At true left edge
-            y=y*8 + 4  # Start at y=4 and space by 8
-        )
-        group.append(text_label)
-        left_border.append(text_label)
-        
-    # Right border
-    for y in range(4):  # 4 vertical characters
-        text_label = Label(
-            terminalio.FONT,
-            text="|",
-            color=red,
-            x=61,  # At true right edge
-            y=y*8 + 4  # Start at y=4 and space by 8
-        )
-        group.append(text_label)
-        right_border.append(text_label)
-    
-    # Add configurable text at top - now with auto-centering
-    title_label = Label(
-        terminalio.FONT,
-        text=DISPLAY_TEXT,
-        color=white,
-        x=center_text_position(DISPLAY_TEXT, terminalio.FONT),  # Auto-centered
-        y=8   # Near top
-    )
-    group.append(title_label)
-    
-    # Add timer text - also centered
-    timer_text = f"{COUNTDOWN_SECONDS//60:02d}:{COUNTDOWN_SECONDS%60:02d}"
-    timer_label = Label(
-        terminalio.FONT,
-        text=timer_text,
-        color=white,
-        x=center_text_position(timer_text, terminalio.FONT),  # Auto-centered
-        y=20   # Below title
-    )
-    group.append(timer_label)
-    
-    # Set the display's root group
-    matrixportal.display.root_group = group
-    print("Display updated")
-
-    # Animation state
-    animation_step = 0
-
-    # Set initial border state
-    set_dashed_border(top_border, bottom_border, left_border, right_border)
-
-    # Countdown loop
-    countdown = COUNTDOWN_SECONDS
-    last_second = time.monotonic()
-    
-    while countdown >= 0:
-        current_time = time.monotonic()
-        
-        # Update countdown every second
-        if current_time - last_second >= 1.0:
-            countdown -= 1
-            last_second = current_time
-            
-            # Update timer display with centering
-            minutes = countdown // 60
-            seconds = countdown % 60
-            timer_text = f"{minutes:02d}:{seconds:02d}"
-            timer_label.text = timer_text
-            timer_label.x = center_text_position(timer_text, terminalio.FONT)
-        
-        # Animate border when countdown <= FINAL_COUNTDOWN
-        if countdown <= FINAL_COUNTDOWN and countdown > 0:
-            set_animated_border(animation_step, top_border, bottom_border, left_border, right_border)
-            animation_step = (animation_step + 1) % 2
-            time.sleep(0.2)  # Animation speed
-        elif countdown > FINAL_COUNTDOWN:
-            set_dashed_border(top_border, bottom_border, left_border, right_border)
-            time.sleep(0.1)  # Regular update rate
-            
-    # After countdown, show centered "DONE" for 10 seconds
-    timer_label.text = "DONE"
-    timer_label.x = center_text_position("DONE", terminalio.FONT)
-    set_solid_border(top_border, bottom_border, left_border, right_border)
-    
-    done_start = time.monotonic()
-    while time.monotonic() - done_start < DONE_DISPLAY_TIME:
-        time.sleep(0.1)
-    
-    # Change title to "STOPWATCH"
-    title_label.text = STOPWATCH_TEXT
-    title_label.x = center_text_position(STOPWATCH_TEXT, terminalio.FONT)
-    
-    # Start stopwatch
-    stopwatch_start = time.monotonic()
-    blink_step = 0
-    last_update = stopwatch_start
-    
-    while True:
-        current_time = time.monotonic()
-        elapsed = int(current_time - stopwatch_start)
-        
-        # Update display every second
-        if current_time - last_update >= 1.0:
-            minutes = elapsed // 60
-            seconds = elapsed % 60
-            timer_text = f"{minutes:02d}:{seconds:02d}"
-            timer_label.text = timer_text
-            timer_label.x = center_text_position(timer_text, terminalio.FONT)
-            last_update = current_time
-        
-        # Blink border every 0.5 seconds
-        set_blinking_border(blink_step, top_border, bottom_border, left_border, right_border)
-        blink_step = (blink_step + 1) % 2
-        time.sleep(0.5)  # Slower blink rate
-
-except Exception as e:
-    print("Error occurred:", str(e))
-    time.sleep(5)
+# Main program
+print("Creating display object...")
+display = CountdownDisplay()
+print("Starting display...")
+display.run()

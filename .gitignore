@@ -90,3 +90,4 @@ fastlane/screenshots/**/*.png
 fastlane/test_output
 
 settings.toml
+secrets.py
