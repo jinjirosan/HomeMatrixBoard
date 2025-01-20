@@ -40,7 +40,7 @@ class DisplayText:
             terminalio.FONT,
             text="READY",
             color=WHITE,
-            x=17,
+            x=self.center_text_position("READY"),
             y=8
         )
         
@@ -49,7 +49,7 @@ class DisplayText:
             terminalio.FONT,
             text="--:--",
             color=WHITE,
-            x=22,
+            x=self.center_text_position("--:--"),
             y=20
         )
         
@@ -59,13 +59,18 @@ class DisplayText:
     
     def center_text_position(self, text):
         """Calculate x position to center text"""
-        text_width = len(text) * 5
-        return (DISPLAY_WIDTH - text_width) // 2
+        # Each character is 6 pixels wide (5 for char + 1 for spacing)
+        text_width = len(text) * 6
+        center_pos = (DISPLAY_WIDTH - text_width) // 2
+        print(f"Centering text: '{text}' width={text_width} pos={center_pos}")
+        return center_pos
     
     def update_text(self, text, label, y_position):
         """Update text content and position"""
+        print(f"Updating text to: '{text}' at y={y_position}")
         label.text = text
         label.x = self.center_text_position(text)
+        print(f"New label position: x={label.x} y={label.y}")
 
 class BorderManager:
     def __init__(self, matrixportal):
