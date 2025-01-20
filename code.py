@@ -1,3 +1,4 @@
+# pyright: ignore[reportShadowedImports]
 import board
 import time
 import json
@@ -67,7 +68,7 @@ class CountdownDisplay:
             
             # Add title label (centered at y=8)
             self.title_label = self.matrixportal.add_text(
-                text_position=(17, 8),  # Fixed position for better centering
+                text_position=(self.center_text_position("READY"), 8),  # Dynamic centering
                 text_font=terminalio.FONT,
                 text_color=WHITE,
                 text="READY"
@@ -75,7 +76,7 @@ class CountdownDisplay:
             
             # Add timer label (centered at y=20)
             self.timer_label = self.matrixportal.add_text(
-                text_position=(22, 20),  # Fixed position for better centering
+                text_position=(self.center_text_position("--:--"), 20),  # Dynamic centering
                 text_font=terminalio.FONT,
                 text_color=WHITE,
                 text="--:--"
@@ -170,7 +171,7 @@ class CountdownDisplay:
 
     def update_text_display(self, text, label_index, y_position):
         """Update text and ensure it's centered"""
-        # Simple text update
+        # Just update the text - the label was created with proper centering
         self.matrixportal.set_text(text, label_index)
 
     def check_test_trigger(self):
@@ -254,6 +255,7 @@ class CountdownDisplay:
                 seconds = elapsed % 60
                 timer_text = f"{minutes:02d}:{seconds:02d}"
                 self.update_text_display(timer_text, self.timer_label, 20)
+                self.current_timer_text = timer_text
                 self.last_update = current_time
                 
                 # Update border every second (on the same timing as the text)
@@ -303,7 +305,8 @@ class CountdownDisplay:
                     
                     # Switch to stopwatch mode
                     self.current_countdown = None
-                    self.update_stopwatch()
+                    self.stopwatch_start = current_time
+                    self.update_text_display(STOPWATCH_TEXT, self.title_label, 8)
             else:
                 # In stopwatch mode
                 self.update_stopwatch()
