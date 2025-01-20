@@ -30,6 +30,8 @@ class DisplayText:
         self.title_label = None
         self.timer_label = None
         self.text_group = displayio.Group()
+        self.last_lengths = {}  # Cache for text lengths
+        self.last_positions = {}  # Cache for calculated positions
         self.setup_text()
         self.matrixportal.display.root_group.append(self.text_group)
         
@@ -59,18 +61,27 @@ class DisplayText:
     
     def center_text_position(self, text):
         """Calculate x position to center text"""
-        # Each character is 6 pixels wide (5 for char + 1 for spacing)
-        text_width = len(text) * 6
+        # Use cached position if text length hasn't changed
+        text_len = len(text)
+        if text_len in self.last_positions:
+            return self.last_positions[text_len]
+            
+        # Calculate new position
+        text_width = text_len * 6
         center_pos = (DISPLAY_WIDTH - text_width) // 2
-        print(f"Centering text: '{text}' width={text_width} pos={center_pos}")
+        print(f"Calculating new position for text: '{text}' width={text_width} pos={center_pos}")
+        
+        # Cache the result
+        self.last_positions[text_len] = center_pos
         return center_pos
     
     def update_text(self, text, label, y_position):
         """Update text content and position"""
-        print(f"Updating text to: '{text}' at y={y_position}")
+        # Only update position if text length changed
+        if len(text) != len(label.text):
+            label.x = self.center_text_position(text)
+            print(f"Text length changed, new position: x={label.x} y={label.y}")
         label.text = text
-        label.x = self.center_text_position(text)
-        print(f"New label position: x={label.x} y={label.y}")
 
 class BorderManager:
     def __init__(self, matrixportal):
