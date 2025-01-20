@@ -21,7 +21,8 @@ HomeMatrixBoard is a CircuitPython project for the Adafruit MatrixPortal M4, pro
 - 64x32 pixel resolution
 - White text on black background
 - Red border with animations
-- Dynamic text centering
+- Dynamic text centering with position caching
+- Optimized updates for fixed-width text
 
 ### Timer Modes
 1. **Countdown Mode**
@@ -56,7 +57,13 @@ HomeMatrixBoard is a CircuitPython project for the Adafruit MatrixPortal M4, pro
 
 ## Technical Notes
 - Text centering uses 6-pixel character width
+- Position calculation is cached based on text length
+- Timer display (MM:SS format) reuses cached positions
 - Border animations run at different speeds:
   - Running ants: 0.2s updates
   - Blinking: 1.0s updates
-- Display updates every 0.05s 
+- Display updates every 0.05s
+- Performance optimizations:
+  - Text positions cached by length
+  - No recalculation for same-length text
+  - Reduced CPU usage for timer updates 

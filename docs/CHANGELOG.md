@@ -2,6 +2,13 @@
 
 All notable changes to the HomeMatrixBoard project will be documented in this file.
 
+## [0.0.1-build.2] - 2024-01-17
+
+### Optimized
+- Text position calculation now uses caching
+- Position only recalculated when text length changes
+- Reduced CPU usage for timer updates
+
 ## [0.0.1-build.1] - 2024-01-17
 
 ### Added
