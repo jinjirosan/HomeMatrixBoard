@@ -6,6 +6,8 @@ import terminalio
 import displayio
 import os
 import supervisor
+import microcontroller
+import watchdog
 from adafruit_matrixportal.matrixportal import MatrixPortal
 from adafruit_display_text.label import Label
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
@@ -23,6 +25,8 @@ TEST_FILE = "test_trigger.json"
 DONE_DISPLAY_TIME = 10  # How long to show "DONE" message
 FINAL_COUNTDOWN = 10    # When to start running ants animation
 STOPWATCH_TEXT = "STOPWATCH"  # Text to display during stopwatch mode
+RECONNECT_DELAY = 5     # Seconds to wait between reconnection attempts
+MAX_FAILED_PINGS = 3    # Maximum failed ping attempts before reconnecting
 
 # Colors
 RED = 0xFF0000
@@ -34,6 +38,11 @@ try:
     supervisor.runtime.serial_connected = True
 except:
     pass
+
+# Setup watchdog
+watchdog.timeout = 30  # 30 second timeout
+watchdog.mode = watchdog.WatchDogMode.RESET
+watchdog.feed()
 
 # Get wifi details from secrets.py
 try:
@@ -330,6 +339,12 @@ class CountdownDisplay:
             self.border_manager.clear_border()
             self.last_check = time.monotonic()
             
+            # Network state tracking
+            self.last_mqtt_ping = time.monotonic()
+            self.failed_pings = 0
+            self.mqtt_client = None
+            self.network_pool = None
+            
             # Initialize MQTT
             self.setup_mqtt()
             
@@ -339,34 +354,89 @@ class CountdownDisplay:
             print("Error during initialization:", str(e))
             raise
 
+    def check_wifi_connection(self):
+        """Check if WiFi is connected and reconnect if needed"""
+        try:
+            if not self.matrixportal.network.is_connected:
+                print("WiFi disconnected, attempting to reconnect...")
+                self.matrixportal.network.connect()
+                if self.matrixportal.network.is_connected:
+                    print("WiFi reconnected successfully")
+                    return True
+                else:
+                    print("WiFi reconnection failed")
+                    return False
+            return True
+        except Exception as e:
+            print("Error checking WiFi:", str(e))
+            return False
+
+    def check_mqtt_connection(self):
+        """Check MQTT connection and reconnect if needed"""
+        try:
+            # Check if it's time to ping
+            current_time = time.monotonic()
+            if current_time - self.last_mqtt_ping >= 60:  # Ping every 60 seconds
+                self.last_mqtt_ping = current_time
+                try:
+                    self.mqtt_client.ping()
+                    self.failed_pings = 0  # Reset counter on successful ping
+                except Exception as e:
+                    print("MQTT ping failed:", str(e))
+                    self.failed_pings += 1
+                    
+                    if self.failed_pings >= MAX_FAILED_PINGS:
+                        print("Too many failed pings, reconnecting MQTT...")
+                        self.setup_mqtt()
+                        self.failed_pings = 0
+            return True
+        except Exception as e:
+            print("Error checking MQTT:", str(e))
+            return False
+
     def setup_mqtt(self):
-        """Setup MQTT client"""
-        print("\nConnecting to WiFi...")
-        self.matrixportal.network.connect()
-        print("Connected to WiFi!")
-        print("IP Address:", self.matrixportal.network.ip_address)
+        """Setup MQTT client with reconnection logic"""
+        try:
+            # First ensure WiFi is connected
+            if not self.check_wifi_connection():
+                print("Cannot setup MQTT - WiFi not connected")
+                time.sleep(RECONNECT_DELAY)
+                return False
 
-        # Create the socketpool
-        pool = adafruit_esp32spi_socketpool.SocketPool(self.matrixportal.network._wifi.esp)
+            print("\nConnecting to WiFi...")
+            self.matrixportal.network.connect()
+            print("Connected to WiFi!")
+            print("IP Address:", self.matrixportal.network.ip_address)
 
-        # Set up MQTT client
-        print("Connecting to MQTT broker...")
-        self.mqtt_client = MQTT.MQTT(
-            broker=secrets['mqtt_broker'],
-            port=secrets['mqtt_port'],
-            username=secrets['mqtt_user'],
-            password=secrets['mqtt_password'],
-            socket_pool=pool,
-            is_ssl=False,
-        )
+            # Create the socketpool
+            self.network_pool = adafruit_esp32spi_socketpool.SocketPool(self.matrixportal.network._wifi.esp)
 
-        # Setup the callback methods
-        self.mqtt_client.on_connect = self.on_connect
-        self.mqtt_client.on_message = self.on_message
-        self.mqtt_client.on_subscribe = self.on_subscribe
+            # Set up MQTT client
+            print("Connecting to MQTT broker...")
+            self.mqtt_client = MQTT.MQTT(
+                broker=secrets['mqtt_broker'],
+                port=secrets['mqtt_port'],
+                username=secrets['mqtt_user'],
+                password=secrets['mqtt_password'],
+                socket_pool=self.network_pool,
+                is_ssl=False,
+                keep_alive=60  # Send ping every 60 seconds
+            )
 
-        print(f"Attempting to connect to {secrets['mqtt_broker']} as {secrets['mqtt_user']}")
-        self.mqtt_client.connect()
+            # Setup the callback methods
+            self.mqtt_client.on_connect = self.on_connect
+            self.mqtt_client.on_message = self.on_message
+            self.mqtt_client.on_subscribe = self.on_subscribe
+
+            print(f"Attempting to connect to {secrets['mqtt_broker']} as {secrets['mqtt_user']}")
+            self.mqtt_client.connect()
+            self.last_mqtt_ping = time.monotonic()
+            return True
+
+        except Exception as e:
+            print("Error setting up MQTT:", str(e))
+            time.sleep(RECONNECT_DELAY)
+            return False
 
     def on_connect(self, client, userdata, flags, rc):
         """Callback when connected to MQTT broker"""
@@ -427,8 +497,20 @@ class CountdownDisplay:
         try:
             current_time = time.monotonic()
             
+            # Feed the watchdog
+            watchdog.feed()
+            
+            # Check network connections
+            if not self.check_wifi_connection() or not self.check_mqtt_connection():
+                return
+            
             # Process any pending MQTT messages
-            self.mqtt_client.loop()
+            try:
+                self.mqtt_client.loop()
+            except Exception as e:
+                print("Error in MQTT loop:", str(e))
+                self.setup_mqtt()  # Try to reconnect
+                return
             
             # Check for new countdown trigger (keep file-based trigger for testing)
             if not self.timer_manager.current_countdown and not self.timer_manager.stopwatch_start and not self.timer_manager.done_start:
@@ -485,6 +567,7 @@ class CountdownDisplay:
                 
         except Exception as e:
             print("Error in update:", str(e))
+            # Don't sleep here as it might be a temporary error
 
     def run(self):
         """Main run loop"""
@@ -495,6 +578,10 @@ class CountdownDisplay:
                 time.sleep(0.01)  # Small sleep to prevent CPU overload
             except Exception as e:
                 print("Error in main loop:", str(e))
+                try:
+                    self.setup_mqtt()  # Try to reconnect
+                except:
+                    pass
                 time.sleep(1)
 
 # Main program

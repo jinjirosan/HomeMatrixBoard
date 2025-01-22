@@ -43,19 +43,20 @@ import json
 app = Flask(__name__)
 
 # MQTT Configuration
-MQTT_BROKER = "172.16.234.55"
+MQTT_BROKER = "172.16.234.55"  # Your MQTT broker IP
 MQTT_PORT = 1883
 MQTT_USER = "sigfoxwebhookhost"
 MQTT_PASSWORD = "system1234"
 
-def publish_to_mqtt(topic, name, duration):
+def publish_to_mqtt(topic, display_text, duration):
     try:
         client = mqtt.Client()
         client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         
+        # Send the display text directly without modification
         message = json.dumps({
-            "name": f"{name} Tijd",
+            "name": display_text,
             "duration": int(duration)
         })
         
@@ -69,29 +70,32 @@ def publish_to_mqtt(topic, name, duration):
 @app.route('/sigfox', methods=['POST', 'GET'])
 def handle_webhook():
     try:
+        # Handle both GET and POST methods for testing
         if request.method == 'GET':
-            name = request.args.get('name', '')
+            target = request.args.get('target', '')  # Which display to use
+            text = request.args.get('text', '')      # What text to show
             duration = request.args.get('duration', '')
         else:
             data = request.get_json(silent=True) or {}
-            name = data.get('name', '')
+            target = data.get('target', '')
+            text = data.get('text', '')
             duration = data.get('duration', '')
 
-        if not name or not duration:
-            return 'Missing name or duration', 400
+        if not target or not duration or not text:
+            return 'Missing target, text, or duration', 400
 
+        # Map display targets to MQTT topics
         topic_mapping = {
-            'wc': ('home/displays/wc', 'WC'),
-            'bathroom': ('home/displays/bathroom', 'Bathroom'),
-            'eva': ('home/displays/eva', 'Eva')
+            'wc': 'home/displays/wc',
+            'bathroom': 'home/displays/bathroom',
+            'eva': 'home/displays/eva'
         }
 
-        topic_info = topic_mapping.get(name.lower())
-        if not topic_info:
-            return f'Invalid display name: {name}', 400
+        topic = topic_mapping.get(target.lower())
+        if not topic:
+            return f'Invalid target display: {target}', 400
 
-        topic, display_name = topic_info
-        if publish_to_mqtt(topic, display_name, duration):
+        if publish_to_mqtt(topic, text, duration):
             return 'OK', 200
         else:
             return 'Failed to publish to MQTT', 500
@@ -123,8 +127,13 @@ WantedBy=multi-user.target
 ```
 
 ### 5. Nginx Configuration
-Create Nginx site configuration (/etc/nginx/sites-available/sigfox-bridge):
+Create and edit the Nginx site configuration:
+```bash
+# Create and edit the configuration file
+sudo vim /etc/nginx/sites-available/sigfox-bridge
+```
 
+Add the following configuration:
 ```nginx
 server {
     listen 80;
@@ -154,11 +163,11 @@ sudo systemctl restart nginx
 Test the webhook endpoint:
 ```bash
 # Test GET endpoint
-curl "http://172.16.234.39/sigfox?name=wc&duration=60"
+curl "http://172.16.234.39/sigfox?target=wc&text=Shower&duration=60"
 
 # Test POST endpoint
 curl -X POST -H "Content-Type: application/json" \
-     -d '{"name":"wc","duration":60}' \
+     -d '{"target":"wc","text":"Shower","duration":60}' \
      http://172.16.234.39/sigfox
 ```
 
@@ -182,5 +191,10 @@ curl -X POST -H "Content-Type: application/json" \
    
    # Test publishing
    mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P system1234 \
-       -t "home/displays/wc" -m '{"name":"WC Tijd","duration":15}'
+       -t "home/displays/wc" -m '{"name":"Shower","duration":15}'
+   ```
+
+4. After making changes to app.py:
+   ```bash
+   sudo systemctl restart sigfox-bridge
    ```

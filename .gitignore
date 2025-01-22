@@ -91,3 +91,4 @@ fastlane/test_output
 
 settings.toml
 secrets.py
+app.py
