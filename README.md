@@ -1,69 +1,120 @@
-# HomeMatrixBoard Documentation
+# HomeMatrixBoard
 
-## Overview
-HomeMatrixBoard is a CircuitPython project for the Adafruit MatrixPortal M4, providing a versatile display system for countdowns and stopwatch functionality.
+A distributed IoT system for managing and displaying countdown timers on LED matrix displays. The system consists of a webserver handling webhooks, an MQTT broker for message distribution, and MatrixPortal M4 displays showing countdown timers.
 
-## Hardware Requirements
+## System Overview
+
+### Components
+1. **Webserver (172.16.234.39)**
+   - Handles incoming webhooks
+   - Processes and forwards messages to MQTT broker
+   - Built with Flask and Nginx
+
+2. **MQTT Broker (172.16.234.55)**
+   - Manages message distribution
+   - Handles authentication and access control
+   - Built with Mosquitto
+
+3. **MatrixPortal M4 Displays**
+   - Show countdown timers
+   - Connect via WiFi
+   - Subscribe to MQTT topics
+
+### Features
+- Beautiful LED matrix display with animations
+- Real-time countdown updates
+- Multiple display support (WC, Bathroom, Eva)
+- Webhook integration
+- Secure MQTT communication
+
+## Documentation
+
+Detailed documentation is available in the `documentation` folder:
+
+1. [System Architecture](documentation/architecture.md)
+   - System components and flow
+   - Network architecture
+   - Security overview
+
+2. [Webserver Setup](documentation/webserver_setup.md)
+   - Installation guide
+   - Configuration
+   - Testing
+
+3. [MQTT Setup](documentation/mqtt_setup.md)
+   - Broker installation
+   - Access control
+   - Topic configuration
+
+4. [Display Operation](documentation/display_operation.md)
+   - Hardware setup
+   - Message format
+   - Troubleshooting
+
+## Quick Start
+
+### 1. Test Webhook
+```bash
+curl "http://172.16.234.39/sigfox?name=wc&duration=60"
+```
+
+### 2. Test MQTT Directly
+```bash
+mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
+    -t "home/displays/wc" -m '{"name": "WC Tijd", "duration": 15}'
+```
+
+## Message Format
+```json
+{
+    "name": "WC Tijd",
+    "duration": 15
+}
+```
+
+## Display Topics
+- WC Display: `home/displays/wc`
+- Bathroom Display: `home/displays/bathroom`
+- Eva Display: `home/displays/eva`
+
+## Requirements
+
+### Webserver
+- Debian 12
+- Python 3.11+
+- Nginx
+- Flask
+- paho-mqtt
+
+### MQTT Broker
+- Debian 12
+- Mosquitto
+- mosquitto-clients
+
+### Displays
 - Adafruit MatrixPortal M4
 - 64x32 RGB LED Matrix
-- USB-C power supply
+- 5V 4A Power Supply
+- CircuitPython libraries
 
-## Software Requirements
-- CircuitPython 9.2.3 or later
-- Required libraries:
-  - adafruit_matrixportal
-  - adafruit_display_text
-  - terminalio
-  - displayio
+## Security
+- MQTT authentication required
+- Topic-specific access control
+- Nginx reverse proxy
+- Secure credential storage
 
-## Features
-### Display System
-- 64x32 pixel resolution
-- White text on black background
-- Red border with animations
-- Dynamic text centering with position caching
-- Optimized updates for fixed-width text
+## Troubleshooting
+See the individual documentation files for component-specific troubleshooting guides:
+- [Display Operation Guide](documentation/display_operation.md#troubleshooting)
+- [MQTT Setup Guide](documentation/mqtt_setup.md#troubleshooting)
+- [Webserver Setup Guide](documentation/webserver_setup.md#troubleshooting)
 
-### Timer Modes
-1. **Countdown Mode**
-   - Displays title and remaining time
-   - Final countdown animation
-   - Automatic transition to stopwatch
+## Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
-2. **Stopwatch Mode**
-   - Continuous time tracking
-   - Blinking border animation
-   - Clear time display
-
-### Trigger System
-- Uses JSON file for countdown initialization
-- Format:
-  ```json
-  {
-    "name": "Test Timer",
-    "duration": 20
-  }
-  ```
-- File name: `test_trigger.json`
-
-## Usage
-1. Power up the MatrixPortal M4
-2. Default display shows "READY"
-3. Create `test_trigger.json` to start countdown
-4. Display transitions through:
-   - Countdown with title
-   - "DONE" message
-   - Stopwatch mode
-
-## Technical Notes
-- Text centering uses 6-pixel character width
-- Position calculation is cached based on text length
-- Timer display (MM:SS format) reuses cached positions
-- Border animations run at different speeds:
-  - Running ants: 0.2s updates
-  - Blinking: 1.0s updates
-- Display updates every 0.05s
-- Performance optimizations:
-  - Text positions cached by length
-  - No recalculation for same-length text
-  - Reduced CPU usage for timer updates 
+## License
+This project is licensed under the MIT License - see the LICENSE file for details. 
