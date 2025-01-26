@@ -48,19 +48,12 @@ MQTT_PORT = 1883
 MQTT_USER = "sigfoxwebhookhost"
 MQTT_PASSWORD = "system1234"
 
-def publish_to_mqtt(topic, display_text, duration):
+def publish_to_mqtt(topic, message):
     try:
         client = mqtt.Client()
         client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        
-        # Send the display text directly without modification
-        message = json.dumps({
-            "name": display_text,
-            "duration": int(duration)
-        })
-        
-        client.publish(topic, message)
+        client.publish(topic, json.dumps(message))
         client.disconnect()
         return True
     except Exception as e:
@@ -72,17 +65,57 @@ def handle_webhook():
     try:
         # Handle both GET and POST methods for testing
         if request.method == 'GET':
-            target = request.args.get('target', '')  # Which display to use
-            text = request.args.get('text', '')      # What text to show
-            duration = request.args.get('duration', '')
+            target = request.args.get('target', '')    # Which display to use
+            mode = request.args.get('mode', 'timer')   # Display mode (timer or preset)
+            
+            if mode == 'timer':
+                text = request.args.get('text', '')    # What text to show
+                duration = request.args.get('duration', '')
+                message = {
+                    "mode": "timer",
+                    "name": text,
+                    "duration": int(duration)
+                }
+            else:  # preset mode
+                preset_id = request.args.get('preset_id', '')
+                name = request.args.get('name', '')     # Optional custom name
+                duration = request.args.get('duration', '')  # Optional duration
+                message = {
+                    "mode": "preset",
+                    "preset_id": preset_id
+                }
+                if name:
+                    message["name"] = name
+                if duration:
+                    message["duration"] = int(duration)
         else:
             data = request.get_json(silent=True) or {}
             target = data.get('target', '')
-            text = data.get('text', '')
-            duration = data.get('duration', '')
+            mode = data.get('mode', 'timer')
+            
+            if mode == 'timer':
+                message = {
+                    "mode": "timer",
+                    "name": data.get('text', ''),
+                    "duration": int(data.get('duration', 0))
+                }
+            else:  # preset mode
+                message = {
+                    "mode": "preset",
+                    "preset_id": data.get('preset_id', '')
+                }
+                if 'name' in data:
+                    message["name"] = data['name']
+                if 'duration' in data:
+                    message["duration"] = int(data['duration'])
 
-        if not target or not duration or not text:
-            return 'Missing target, text, or duration', 400
+        if not target:
+            return 'Missing target display', 400
+            
+        if mode == 'timer' and (not message.get('name') or not message.get('duration')):
+            return 'Missing text or duration for timer mode', 400
+        elif mode == 'preset' and not message.get('preset_id'):
+            return 'Missing preset_id for preset mode', 400
 
         # Map display targets to MQTT topics
         topic_mapping = {
@@ -95,7 +128,7 @@ def handle_webhook():
         if not topic:
             return f'Invalid target display: {target}', 400
 
-        if publish_to_mqtt(topic, text, duration):
+        if publish_to_mqtt(topic, message):
             return 'OK', 200
         else:
             return 'Failed to publish to MQTT', 500
@@ -162,12 +195,28 @@ sudo systemctl restart nginx
 ## Testing
 Test the webhook endpoint:
 ```bash
-# Test GET endpoint
+# Test timer mode (GET)
 curl "http://172.16.234.39/sigfox?target=wc&text=Shower&duration=60"
 
-# Test POST endpoint
+# Test preset mode (GET)
+curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=on_air"
+
+# Test preset with custom name and duration (GET)
+curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=on_air&name=Studio%201&duration=3600"
+
+# Test timer mode (POST)
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","text":"Shower","duration":60}' \
+     http://172.16.234.39/sigfox
+
+# Test preset mode (POST)
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"target":"wc","mode":"preset","preset_id":"on_air"}' \
+     http://172.16.234.39/sigfox
+
+# Test preset with custom name and duration (POST)
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"target":"wc","mode":"preset","preset_id":"on_air","name":"Studio 1","duration":3600}' \
      http://172.16.234.39/sigfox
 ```
 

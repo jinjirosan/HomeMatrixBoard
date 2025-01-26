@@ -58,9 +58,10 @@ Messages can be formatted in two ways:
 ## Available Presets
 
 ### 1. On Air Preset
-- Background: Red
-- Text: "ON AIR" in white
+- Background: Black
+- Text: "ON AIR" in red
 - Border: Solid white
+- Radio Symbol: Red transmission symbol below text
 - Usage: `{"mode": "preset", "preset_id": "on_air"}`
 
 ### 2. Score Preset

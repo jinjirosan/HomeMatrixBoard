@@ -104,15 +104,22 @@ mosquitto_sub -h localhost -u eva_display -P <password> -t "home/displays/eva"
 
 ### 2. Publish Test Messages
 ```bash
-# Test publishing to WC display
+# Test timer mode for WC display
 mosquitto_pub -h localhost -u sigfoxwebhookhost -P <password> \
     -t "home/displays/wc" -m '{"name":"WC Tijd","duration":15}'
 
-# Test publishing to bathroom display
+# Test preset mode for WC display
+mosquitto_pub -h localhost -u sigfoxwebhookhost -P <password> \
+    -t "home/displays/wc" -m '{"mode":"preset","preset_id":"on_air"}'
+
+# Test preset with custom name and duration
+mosquitto_pub -h localhost -u sigfoxwebhookhost -P <password> \
+    -t "home/displays/wc" -m '{"mode":"preset","preset_id":"on_air","name":"Studio 1","duration":3600}'
+
+# Test other displays (timer mode)
 mosquitto_pub -h localhost -u sigfoxwebhookhost -P <password> \
     -t "home/displays/bathroom" -m '{"name":"Bathroom Tijd","duration":30}'
 
-# Test publishing to Eva display
 mosquitto_pub -h localhost -u sigfoxwebhookhost -P <password> \
     -t "home/displays/eva" -m '{"name":"Eva Tijd","duration":45}'
 ```
