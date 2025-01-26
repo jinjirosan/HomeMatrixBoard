@@ -7,7 +7,6 @@ import displayio
 import os
 import supervisor
 import microcontroller
-import watchdog
 from adafruit_matrixportal.matrixportal import MatrixPortal
 from adafruit_display_text.label import Label
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
@@ -39,11 +38,6 @@ try:
 except:
     pass
 
-# Setup watchdog
-watchdog.timeout = 30  # 30 second timeout
-watchdog.mode = watchdog.WatchDogMode.RESET
-watchdog.feed()
-
 # Get wifi details from secrets.py
 try:
     from secrets import secrets
@@ -60,25 +54,32 @@ class DisplayText:
         self.last_lengths = {}  # Cache for text lengths
         self.last_positions = {}  # Cache for calculated positions
         self.setup_text()
-        self.matrixportal.display.root_group.append(self.text_group)
         
     def setup_text(self):
         """Initialize and create text labels"""
         # Create title label with empty text
         self.title_label = Label(
             terminalio.FONT,
-            text="",  # Empty text instead of "READY"
+            text="",
             color=WHITE,
-            x=0,  # Start at x=0 since there's no text to center
+            background_color=BLACK,  # Add black background for better readability
+            background_tight=False,  # Add padding around text
+            padding_left=1,         # Add left padding
+            padding_right=1,        # Add right padding
+            x=0,
             y=8
         )
         
         # Create timer label
         self.timer_label = Label(
             terminalio.FONT,
-            text="",  # Empty text instead of "--:--"
+            text="",
             color=WHITE,
-            x=0,  # Start at x=0 since there's no text to center
+            background_color=BLACK,  # Add black background for better readability
+            background_tight=False,  # Add padding around text
+            padding_left=1,         # Add left padding
+            padding_right=1,        # Add right padding
+            x=0,
             y=20
         )
         
@@ -122,8 +123,9 @@ class BorderManager:
         """Initialize border display elements"""
         self.border_bitmap = displayio.Bitmap(DISPLAY_WIDTH, DISPLAY_HEIGHT, 2)
         self.border_palette = displayio.Palette(2)
-        self.border_palette[0] = BLACK
-        self.border_palette[1] = RED
+        self.border_palette.make_transparent(0)  # Make index 0 transparent
+        self.border_palette[0] = 0x000000  # Black (will be transparent)
+        self.border_palette[1] = RED   # Initial border color
         
         self.border_grid = displayio.TileGrid(
             self.border_bitmap,
@@ -308,34 +310,157 @@ class TimerManager:
             "update": False
         }
 
+class PresetManager:
+    """Manages preset display configurations"""
+    def __init__(self, matrixportal):
+        self.matrixportal = matrixportal
+        self.current_preset = None
+        self.preset_start = None
+        self.preset_duration = None
+        
+        # Create radio symbol bitmap (16x16 pixels)
+        self.radio_bitmap = displayio.Bitmap(16, 16, 2)
+        self.radio_palette = displayio.Palette(2)
+        self.radio_palette[0] = BLACK  # Set to black first
+        self.radio_palette.make_transparent(0)  # Then make it transparent
+        self.radio_palette[1] = RED   # Symbol color
+        
+        # Draw radio waves symbol (three arcs)
+        # Small arc
+        for i in range(5):
+            self.radio_bitmap[7+i, 7] = 1
+            self.radio_bitmap[7+i, 8] = 1
+        # Medium arc
+        for i in range(7):
+            self.radio_bitmap[6+i, 5] = 1
+            self.radio_bitmap[6+i, 6] = 1
+        # Large arc
+        for i in range(9):
+            self.radio_bitmap[5+i, 3] = 1
+            self.radio_bitmap[5+i, 4] = 1
+        
+        # Create radio symbol tile grid
+        self.radio_grid = displayio.TileGrid(
+            self.radio_bitmap,
+            pixel_shader=self.radio_palette,
+            x=(DISPLAY_WIDTH - 16) // 2,  # Center horizontally
+            y=16  # Position below text
+        )
+        
+        # Create radio symbol group and hide it by default
+        self.radio_group = displayio.Group()
+        self.radio_group.append(self.radio_grid)
+        self.radio_group.hidden = True  # Hide the radio symbol by default
+        
+        # Define preset configurations
+        self.presets = {
+            "on_air": {
+                "background": BLACK,     # Changed to black background
+                "text": "ON AIR",
+                "text_color": RED,      # Changed to red text
+                "border_mode": "solid",
+                "border_color": WHITE,
+                "show_radio": True      # Flag to show radio symbol
+            },
+            "score": {
+                "background": 0x00FF00,  # Green
+                "text": "SCORE",
+                "text_color": 0xFFFF00,  # Yellow
+                "border_mode": "animated",
+                "border_color": 0xFFFF00,
+                "show_radio": False
+            },
+            "breaking": {
+                "background": 0x0000FF,  # Blue
+                "text": "BREAKING",
+                "text_color": WHITE,
+                "border_mode": "blinking",
+                "border_color": RED,
+                "show_radio": False
+            }
+        }
+        
+    def start_preset(self, preset_id, name=None, duration=None):
+        """Start displaying a preset configuration"""
+        if preset_id not in self.presets:
+            print(f"Unknown preset: {preset_id}")
+            return False
+            
+        self.current_preset = preset_id
+        self.preset_start = time.monotonic()
+        self.preset_duration = duration
+        return True
+        
+    def update_preset(self, current_time):
+        """Update preset state"""
+        if not self.current_preset:
+            return None
+            
+        # Check if preset should expire
+        if self.preset_duration and (current_time - self.preset_start >= self.preset_duration):
+            preset_id = self.current_preset
+            self.current_preset = None
+            self.preset_start = None
+            self.preset_duration = None
+            return {"type": "preset_end", "preset": preset_id}
+            
+        return {
+            "type": "preset",
+            "preset": self.current_preset,
+            "config": self.presets[self.current_preset]
+        }
+        
+    def clear_preset(self):
+        """Clear current preset"""
+        self.current_preset = None
+        self.preset_start = None
+        self.preset_duration = None
+
 class CountdownDisplay:
     def __init__(self):
         print("Initializing display...")
         try:
+            print("Init display")
             self.matrixportal = MatrixPortal(
                 status_neopixel=board.NEOPIXEL,
                 debug=True
             )
-            print("MatrixPortal initialized")
             
             # Create main display group
+            print("Init background")
             self.main_group = displayio.Group()
-            self.matrixportal.display.root_group = self.main_group
             
-            # Set background
-            self.matrixportal.set_background(BLACK)
+            # Create background layer (bottom)
+            self.background_bitmap = displayio.Bitmap(DISPLAY_WIDTH, DISPLAY_HEIGHT, 1)
+            self.background_palette = displayio.Palette(1)
+            self.background_palette[0] = BLACK
+            self.background = displayio.TileGrid(
+                self.background_bitmap,
+                pixel_shader=self.background_palette
+            )
             
-            # Initialize border first (bottom layer)
+            # Initialize border (middle layer)
             self.border_manager = BorderManager(self.matrixportal)
-            self.main_group.append(self.border_manager.border_group)
             
-            # Initialize text second (top layer)
+            # Initialize text (top layer)
             self.text_manager = DisplayText(self.matrixportal)
             
-            # Initialize timer
+            # Initialize preset manager
+            self.preset_manager = PresetManager(self.matrixportal)
+            
+            # Add layers in correct order (bottom to top)
+            self.main_group.append(self.background)        # Bottom layer
+            self.main_group.append(self.border_manager.border_group)  # Middle layer
+            self.main_group.append(self.text_manager.text_group)      # Top layer
+            self.main_group.append(self.preset_manager.radio_group)   # Radio symbol layer
+            
+            # Set the display's root group
+            self.matrixportal.display.root_group = self.main_group
+            
+            # Initialize timer manager
             self.timer_manager = TimerManager()
             
-            # Set initial state - start with clear border instead of dashed
+            # Set initial state
             self.border_manager.clear_border()
             self.last_check = time.monotonic()
             
@@ -457,11 +582,68 @@ class CountdownDisplay:
         try:
             # Parse the JSON message
             data = json.loads(message)
-            if "name" in data and "duration" in data:
-                if self.timer_manager.start_countdown(data["name"], data["duration"]):
-                    self.text_manager.update_text(data["name"], self.text_manager.title_label, 8)
-                    self.border_manager.set_solid_border()  # Show solid border when countdown starts
-                    print("Countdown started successfully")
+            
+            # Clear any existing displays
+            self.timer_manager.current_countdown = None
+            self.timer_manager.stopwatch_start = None
+            self.timer_manager.done_start = None
+            self.preset_manager.clear_preset()
+            
+            # Reset display to default state
+            self.text_manager.update_text("", self.text_manager.title_label, 8)
+            self.text_manager.update_text("", self.text_manager.timer_label, 20)
+            self.border_manager.clear_border()
+            
+            # Hide radio symbol by default
+            self.preset_manager.radio_group.hidden = True
+            
+            # Check message mode (defaults to "timer" for backward compatibility)
+            mode = data.get("mode", "timer")
+            
+            if mode == "timer":
+                # Set default colors for timer mode
+                self.set_background(BLACK)
+                self.text_manager.title_label.color = WHITE
+                self.text_manager.timer_label.color = WHITE
+                self.border_manager.border_palette[1] = RED  # Reset border to default red
+                
+                if "name" in data and "duration" in data:
+                    if self.timer_manager.start_countdown(data["name"], data["duration"]):
+                        self.text_manager.update_text(data["name"], self.text_manager.title_label, 8)
+                        self.border_manager.set_solid_border()
+                        print("Countdown started successfully")
+            elif mode == "preset":
+                if "preset_id" in data:
+                    name = data.get("name", "")  # Optional name override
+                    duration = data.get("duration")  # Optional duration
+                    if self.preset_manager.start_preset(data["preset_id"], name, duration):
+                        preset_config = self.preset_manager.presets[data["preset_id"]]
+                        
+                        # First set the background color
+                        self.set_background(preset_config["background"])
+                        
+                        # Update text and its color
+                        display_text = name if name else preset_config["text"]
+                        self.text_manager.title_label.color = preset_config["text_color"]
+                        self.text_manager.update_text(display_text, self.text_manager.title_label, 8)
+                        
+                        # Clear timer text
+                        self.text_manager.timer_label.color = preset_config["text_color"]
+                        self.text_manager.update_text("", self.text_manager.timer_label, 20)
+                        
+                        # Set border color and mode
+                        self.border_manager.border_palette[1] = preset_config["border_color"]
+                        if preset_config["border_mode"] == "solid":
+                            self.border_manager.set_solid_border()
+                        elif preset_config["border_mode"] == "animated":
+                            self.border_manager.set_animated()
+                        elif preset_config["border_mode"] == "blinking":
+                            self.border_manager.set_blinking()
+                        
+                        # Show/hide radio symbol based on preset configuration
+                        self.preset_manager.radio_group.hidden = not preset_config.get("show_radio", False)
+                        
+                        print(f"Preset {data['preset_id']} started successfully")
         except Exception as e:
             print(f"Error processing message: {e}")
         print("=========================\n")
@@ -497,9 +679,6 @@ class CountdownDisplay:
         try:
             current_time = time.monotonic()
             
-            # Feed the watchdog
-            watchdog.feed()
-            
             # Check network connections
             if not self.check_wifi_connection() or not self.check_mqtt_connection():
                 return
@@ -513,12 +692,57 @@ class CountdownDisplay:
                 return
             
             # Check for new countdown trigger (keep file-based trigger for testing)
-            if not self.timer_manager.current_countdown and not self.timer_manager.stopwatch_start and not self.timer_manager.done_start:
+            if not self.timer_manager.current_countdown and not self.timer_manager.stopwatch_start and \
+               not self.timer_manager.done_start and not self.preset_manager.current_preset:
                 trigger = self.check_test_trigger()
                 if trigger:
-                    if self.timer_manager.start_countdown(trigger["name"], trigger["duration"]):
-                        self.text_manager.update_text(trigger["name"], self.text_manager.title_label, 8)
-                        self.border_manager.set_solid_border()
+                    mode = trigger.get("mode", "timer")
+                    if mode == "timer":
+                        # Set default colors for timer mode
+                        self.set_background(BLACK)
+                        self.text_manager.title_label.color = WHITE
+                        self.text_manager.timer_label.color = WHITE
+                        self.border_manager.border_palette[1] = RED  # Reset border to default red
+                        
+                        if self.timer_manager.start_countdown(trigger["name"], trigger["duration"]):
+                            self.text_manager.update_text(trigger["name"], self.text_manager.title_label, 8)
+                            self.border_manager.set_solid_border()
+                    elif mode == "preset" and "preset_id" in trigger:
+                        if self.preset_manager.start_preset(trigger["preset_id"], trigger.get("name"), trigger.get("duration")):
+                            preset_config = self.preset_manager.presets[trigger["preset_id"]]
+                            
+                            # First set the background color
+                            self.set_background(preset_config["background"])
+                            
+                            # Update text and its color
+                            display_text = trigger.get("name", "") if trigger.get("name") else preset_config["text"]
+                            self.text_manager.title_label.color = preset_config["text_color"]
+                            self.text_manager.update_text(display_text, self.text_manager.title_label, 8)
+                            
+                            # Clear timer text
+                            self.text_manager.timer_label.color = preset_config["text_color"]
+                            self.text_manager.update_text("", self.text_manager.timer_label, 20)
+                            
+                            # Set border color and mode
+                            self.border_manager.border_palette[1] = preset_config["border_color"]
+                            if preset_config["border_mode"] == "solid":
+                                self.border_manager.set_solid_border()
+                            elif preset_config["border_mode"] == "animated":
+                                self.border_manager.set_animated()
+                            elif preset_config["border_mode"] == "blinking":
+                                self.border_manager.set_blinking()
+                return
+            
+            # Update preset state if active
+            if self.preset_manager.current_preset:
+                state = self.preset_manager.update_preset(current_time)
+                if state:
+                    if state["type"] == "preset_end":
+                        # Clear display when preset expires
+                        self.border_manager.clear_border()
+                        self.text_manager.update_text("", self.text_manager.title_label, 8)
+                        self.text_manager.update_text("", self.text_manager.timer_label, 20)
+                        self.set_background(BLACK)
                 return
             
             # Update timer state
@@ -583,6 +807,10 @@ class CountdownDisplay:
                 except:
                     pass
                 time.sleep(1)
+
+    def set_background(self, color):
+        """Set the background color"""
+        self.background_palette[0] = color
 
 # Main program
 print("Creating display object...")

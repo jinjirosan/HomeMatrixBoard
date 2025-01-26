@@ -16,13 +16,22 @@ The system uses MatrixPortal M4 LED matrix displays to show countdown timers. Ea
    - Final countdown animation (last 10 seconds)
    - "DONE" message when complete
 
-2. Status Indicators
+2. Preset Displays
+   - "On Air" - Red background with white text
+   - "Score" - Green background with yellow text
+   - "Breaking" - Blue background with white text
+   - Configurable display duration
+   - Custom border animations per preset
+
+3. Status Indicators
    - WiFi connection status
    - MQTT connection status
    - Error messages
 
 ## Message Format
-Messages must be formatted as JSON:
+Messages can be formatted in two ways:
+
+1. Timer Mode (Original Format):
 ```json
 {
     "name": "WC Tijd",
@@ -31,6 +40,40 @@ Messages must be formatted as JSON:
 ```
 - `name`: Display title (automatically centered)
 - `duration`: Countdown time in seconds
+
+2. Preset Mode (New Format):
+```json
+{
+    "mode": "preset",
+    "preset_id": "on_air",
+    "name": "Studio 1",    // Optional
+    "duration": 3600      // Optional, auto-clear after duration
+}
+```
+- `mode`: Set to "preset" for preset displays
+- `preset_id`: One of: "on_air", "score", "breaking"
+- `name`: Optional custom text override
+- `duration`: Optional display duration in seconds
+
+## Available Presets
+
+### 1. On Air Preset
+- Background: Red
+- Text: "ON AIR" in white
+- Border: Solid white
+- Usage: `{"mode": "preset", "preset_id": "on_air"}`
+
+### 2. Score Preset
+- Background: Green
+- Text: "SCORE" in yellow
+- Border: Animated yellow
+- Usage: `{"mode": "preset", "preset_id": "score"}`
+
+### 3. Breaking Preset
+- Background: Blue
+- Text: "BREAKING" in white
+- Border: Blinking red
+- Usage: `{"mode": "preset", "preset_id": "breaking"}`
 
 ## MQTT Topics
 Each display subscribes to a specific topic:
@@ -64,23 +107,22 @@ Each display subscribes to a specific topic:
 
 ### 1. Direct MQTT Testing
 ```bash
-# Test WC display
+# Test timer mode
 mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
     -t "home/displays/wc" -m '{"name": "WC Tijd", "duration": 15}'
 
-# Test bathroom display
+# Test preset mode
 mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
-    -t "home/displays/bathroom" -m '{"name": "Bathroom Tijd", "duration": 30}'
-
-# Test Eva display
-mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
-    -t "home/displays/eva" -m '{"name": "Eva Tijd", "duration": 45}'
+    -t "home/displays/wc" -m '{"mode": "preset", "preset_id": "on_air", "duration": 3600}'
 ```
 
 ### 2. Webhook Testing
 ```bash
-# Test via webserver
+# Test timer via webserver
 curl "http://172.16.234.39/sigfox?name=wc&duration=60"
+
+# Test preset via webserver
+curl "http://172.16.234.39/sigfox?mode=preset&preset_id=on_air&name=wc"
 ```
 
 ## Troubleshooting

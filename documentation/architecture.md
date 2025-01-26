@@ -1,7 +1,7 @@
 # HomeMatrixBoard System Architecture
 
 ## Overview
-The HomeMatrixBoard system is a distributed IoT display system that shows countdown timers on LED matrix displays. The system consists of three main components:
+The HomeMatrixBoard system is a distributed IoT display system that shows countdown timers and preset displays on LED matrix displays. The system consists of three main components:
 
 1. **Webserver (172.16.234.39)**
    - Debian 12 server running Flask application
@@ -16,23 +16,37 @@ The HomeMatrixBoard system is a distributed IoT display system that shows countd
    - Topic structure: home/displays/{location}
 
 3. **MatrixPortal M4 Displays**
-   - LED matrix displays showing countdown timers
+   - LED matrix displays showing countdown timers and preset displays
    - WiFi-enabled with MQTT client
    - Locations: WC, Bathroom, Eva
-   - Displays countdown timers with animations
+   - Supports:
+     - Countdown timers with animations
+     - Preset displays (On Air, Score, Breaking)
+     - Custom text and durations
 
 ## Message Flow
 1. External trigger sends webhook to webserver (GET/POST)
 2. Webserver validates and formats message
 3. Message published to MQTT broker with format:
    ```json
+   # Timer Mode
    {
        "name": "WC Tijd",
        "duration": 60
    }
+   
+   # Preset Mode
+   {
+       "mode": "preset",
+       "preset_id": "on_air",
+       "name": "Studio 1",    # Optional
+       "duration": 3600      # Optional
+   }
    ```
 4. MQTT broker routes to appropriate display
-5. Display shows animated countdown
+5. Display shows either:
+   - Animated countdown timer
+   - Preset display with custom background and text
 
 ## Network Architecture
 ```ascii

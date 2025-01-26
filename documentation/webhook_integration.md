@@ -5,30 +5,67 @@
 - Methods: GET, POST
 
 ## Required Parameters
+
+### Timer Mode (Default)
 - `target`: Display identifier (wc, bathroom, eva)
 - `text`: Text to display on the screen
 - `duration`: Time in seconds
 
+### Preset Mode
+- `target`: Display identifier (wc, bathroom, eva)
+- `mode`: Set to "preset"
+- `preset_id`: Preset identifier (on_air, score, breaking)
+- `duration`: Time in seconds (optional)
+- `text`: Override text (optional)
+
 ## Example Requests
 
-### GET Request
+### Timer Mode
 ```bash
-# Basic example
+# Basic timer example
 curl "http://172.16.234.39/sigfox?target=wc&text=Shower&duration=60"
 
 # Examples with spaces in text (use %20 or + for spaces)
 curl "http://172.16.234.39/sigfox?target=wc&text=WC%20over&duration=60"
-curl "http://172.16.234.39/sigfox?target=bathroom&text=Bath+Time&duration=300"
-curl "http://172.16.234.39/sigfox?target=eva&text=Homework+Done&duration=1800"
 ```
 
-### POST Request
+### Preset Mode
 ```bash
-# With POST requests, no URL encoding is needed for spaces
+# Basic preset example
+curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=on_air"
+
+# Preset with duration
+curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=score&duration=3600"
+
+# Preset with custom text
+curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=breaking&text=News%20Flash"
+```
+
+### POST Request Examples
+```bash
+# Timer mode POST
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","text":"WC over","duration":"60"}' \
      http://172.16.234.39/sigfox
+
+# Preset mode POST
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"target":"wc","mode":"preset","preset_id":"on_air","duration":3600}' \
+     http://172.16.234.39/sigfox
 ```
+
+## Available Presets
+1. On Air (`preset_id=on_air`)
+   - Red background with white "ON AIR" text
+   - Solid white border
+
+2. Score (`preset_id=score`)
+   - Green background with yellow "SCORE" text
+   - Animated yellow border
+
+3. Breaking (`preset_id=breaking`)
+   - Blue background with white "BREAKING" text
+   - Blinking red border
 
 ## Response Codes
 - 200: Success
