@@ -79,4 +79,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - DisplayText
   - BorderManager
   - TimerManager
-  - PresetManager 
+  - PresetManager
+
+## [0.0.1-build.2] - 2024-01-17
+
+### Optimized
+- Text position calculation now uses caching
+- Position only recalculated when text length changes
+- Reduced CPU usage for timer updates
+
+## [0.0.1-build.1] - 2024-01-17
+
+### Added
+- Initial implementation of MatrixPortal M4 display controller
+- Text display system with dynamic centering
+- Border animations (dashed, animated, blinking)
+- Countdown timer functionality
+- Automatic transition to stopwatch mode
+- JSON-based trigger system for starting countdowns 
