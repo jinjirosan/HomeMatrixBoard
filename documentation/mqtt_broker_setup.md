@@ -33,6 +33,17 @@ log_type error
 log_type warning
 log_type notice
 log_type information
+
+# Connection settings
+max_keepalive 60
+connection_messages true
+retry_interval 20
+max_inflight_messages 20
+max_queued_messages 100
+
+# Timeout settings
+socket_timeout 10
+keepalive_interval 60
 ```
 
 ## Access Control List (ACL)

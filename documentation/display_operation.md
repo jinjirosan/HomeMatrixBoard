@@ -104,6 +104,34 @@ Each display subscribes to a specific topic:
 - Solid border
 - Returns to ready state after 10 seconds
 
+## MQTT Connection Management
+
+### Connection Features
+- Automatic reconnection with exponential backoff
+- Memory-efficient connection handling
+- Robust subscription recovery
+- Optimized timeout configuration:
+  - Socket timeout: 0.1s
+  - Receive timeout: 0.2s
+  - MQTT loop timeout: 0.1s
+
+### Connection States
+1. Initial Connection
+   - Attempts connection to MQTT broker
+   - Subscribes to display-specific topic
+   - Reports connection status
+
+2. Connection Monitoring
+   - Regular connection checks
+   - Automatic reconnection on failure
+   - Resubscription after reconnection
+
+3. Error Recovery
+   - Exponential backoff for retry attempts
+   - Base delay: 3 seconds
+   - Maximum delay: 300 seconds (5 minutes)
+   - Independent WiFi and MQTT retry tracking
+
 ## Testing
 
 ### 1. Direct MQTT Testing
@@ -132,29 +160,36 @@ curl "http://172.16.234.39/sigfox?mode=preset&preset_id=on_air&name=wc"
 1. Check power connection
 2. Verify WiFi connection
 3. Check MQTT subscription
-4. Reset display if needed
+4. Monitor serial output for connection status
+5. Reset display if needed
 
 ### 2. Display Shows Error
 1. Check error message in serial output
 2. Verify MQTT credentials
 3. Check message format
 4. Verify network connectivity
+5. Monitor connection retry attempts
 
 ### 3. Common Issues
 1. WiFi Connection
    - Check WiFi credentials in secrets.py
    - Verify WiFi signal strength
    - Check network configuration
+   - Monitor reconnection attempts
 
 2. MQTT Connection
    - Verify broker IP address
    - Check MQTT credentials
    - Confirm topic subscription
+   - Monitor connection retry intervals
+   - Check serial output for connection status
 
 3. Display Issues
    - Check power supply (needs 5V 4A)
    - Verify matrix connections
    - Check for loose cables
+   - Monitor memory usage
+   - Check for stack exhaustion errors
 
 ## Maintenance
 
