@@ -428,8 +428,17 @@ class CountdownDisplay:
         self.last_successful_connection = 0
         self.mqtt_client = None
         self.network_pool = None
-        self.last_mqtt_ping = time.monotonic()
-        self.failed_pings = 0
+        
+        # Add connection quality monitoring
+        self.last_heartbeat = 0
+        self.heartbeat_interval = 30  # Send heartbeat every 30 seconds
+        self.last_message_received = 0
+        self.connection_quality = 100  # Track connection quality (percentage)
+        self.message_counter = 0  # Track total messages
+        self.failed_message_counter = 0  # Track failed messages
+        self.last_rssi_check = 0
+        self.rssi_check_interval = 10  # Check signal strength every 10 seconds
+        self.min_acceptable_rssi = -70  # Minimum acceptable signal strength
 
         print("Initializing display...")
         try:
@@ -544,96 +553,191 @@ class CountdownDisplay:
 
         try:
             if not self.mqtt_client.is_connected():
-                print("MQTT disconnected, attempting to reconnect...")
+                print("\n=== MQTT Reconnection Attempt ===")
+                print(f"Last successful connection: {time.monotonic() - self.last_successful_connection:.2f}s ago")
+                print(f"Current retry count: {self.mqtt_retry_count}")
+                print(f"WiFi status: {'Connected' if self.matrixportal.network.is_connected else 'Disconnected'}")
+                print("Attempting to reconnect...")
+                
+                # Add delay before reconnection to allow socket cleanup
+                time.sleep(1.0)
                 self.mqtt_client.reconnect()
+                
                 if self.mqtt_client.is_connected():
                     print("MQTT reconnected successfully")
                     self.mqtt_retry_count = 0
+                    self.last_successful_connection = current_time
                     
-                    # Resubscribe directly after reconnection
+                    # Resubscribe with delay
+                    time.sleep(0.5)  # Wait for connection to stabilize
                     try:
                         self.mqtt_client.subscribe(secrets['mqtt_topic'])
                         print(f"Resubscribed to {secrets['mqtt_topic']}")
+                        print("==============================\n")
                         return True
                     except Exception as e:
                         print(f"Resubscription failed: {e}")
+                        print("==============================\n")
                         return False
                 else:
                     self.mqtt_retry_count += 1
                     retry_interval = self.get_retry_interval(self.mqtt_retry_count)
                     print(f"Could not reconnect to MQTT. Retrying in {retry_interval} seconds...")
+                    print("==============================\n")
                     return False
             else:
                 self.mqtt_retry_count = 0
                 return True
         except Exception as e:
-            print(f"Error during MQTT connection check: {e}")
+            print("\n=== MQTT Connection Error ===")
+            print(f"Error details: {e}")
+            print(f"WiFi status: {'Connected' if self.matrixportal.network.is_connected else 'Disconnected'}")
+            print(f"Time since last success: {time.monotonic() - self.last_successful_connection:.2f}s")
+            print(f"Current retry count: {self.mqtt_retry_count}")
             self.mqtt_retry_count += 1
             retry_interval = self.get_retry_interval(self.mqtt_retry_count)
             print(f"Retrying in {retry_interval} seconds...")
+            print("===========================\n")
             return False
 
-    def setup_mqtt(self):
-        """Set up MQTT connection with proper error handling"""
+    def on_connect(self, client, userdata, flags, rc):
+        """Minimal connect callback"""
+        print(f"\n=== MQTT Connected ===")
+        print(f"Connection result: {rc}")
+        self.connection_quality = 100
+
+    def on_disconnect(self, client, userdata, rc):
+        """Callback when disconnected from MQTT broker"""
+        print(f"\n=== MQTT Disconnected ===")
+        print(f"Disconnect reason: {rc}")
+        # Don't try to publish when disconnected
+        self.last_successful_connection = 0
+
+    def on_publish(self, client, userdata, topic):
+        """Callback when message is published"""
+        print(f"Message published to {topic}")
+
+    def publish_status(self, status):
+        """Publish device status with connection check"""
+        if not self.mqtt_client or not self.mqtt_client.is_connected():
+            print("Cannot publish status: MQTT not connected")
+            return
+            
         try:
-            print("Connecting to MQTT broker...")
-            
-            # Create socket pool
-            pool = adafruit_esp32spi_socketpool.SocketPool(self.matrixportal.network._wifi.esp)
-            
-            # Set up MQTT client with absolute minimal configuration
-            self.mqtt_client = MQTT.MQTT(
-                broker=secrets['mqtt_broker'],
-                port=secrets['mqtt_port'],
-                username=secrets['mqtt_user'],
-                password=secrets['mqtt_password'],
-                socket_pool=pool,
-                is_ssl=False,
-                keep_alive=60,
-                socket_timeout=0.1,  # Reduced socket timeout for more responsive operation
-                recv_timeout=0.2,    # Must be > socket_timeout
+            status_data = {
+                "status": status,
+                "uptime": time.monotonic(),
+                "wifi_signal": self.get_wifi_signal_strength(),
+                "connection_quality": self.connection_quality,
+                "message_success_rate": self.get_message_success_rate()
+            }
+            self.mqtt_client.publish(
+                f"{secrets['mqtt_topic']}/status",
+                json.dumps(status_data)
             )
-
-            # Only set message callback - skip others to save memory
-            self.mqtt_client.on_message = self.on_message
-
-            # Connect to MQTT broker
-            print(f"Attempting to connect to {secrets['mqtt_broker']} as {secrets['mqtt_user']}")
-            self.mqtt_client.connect()
-            
-            if self.mqtt_client.is_connected():
-                print("Connected to MQTT broker!")
-                self.mqtt_retry_count = 0
-                
-                # Subscribe directly here instead of in callback
-                try:
-                    self.mqtt_client.subscribe(secrets['mqtt_topic'])
-                    print(f"Subscribed to {secrets['mqtt_topic']}")
-                    return True
-                except Exception as e:
-                    print(f"Initial subscription failed: {e}")
-                    return False
-            else:
-                print("Failed to connect to MQTT broker")
-                return False
-
+            print(f"Published status: {status}")
         except Exception as e:
-            print(f"Error setting up MQTT: {e}")
-            self.mqtt_retry_count += 1
-            retry_interval = self.get_retry_interval(self.mqtt_retry_count)
-            print(f"Retrying in {retry_interval} seconds...")
-            return False
+            print(f"Error publishing status: {e}")
+            # Reset connection quality on publish failure
+            self.connection_quality = max(0, self.connection_quality - 10)
+
+    def get_wifi_signal_strength(self):
+        """Get WiFi signal strength (RSSI)"""
+        try:
+            return self.matrixportal.network._wifi.esp.rssi
+        except:
+            return None
+
+    def get_message_success_rate(self):
+        """Calculate message success rate"""
+        if self.message_counter == 0:
+            return 100
+        return ((self.message_counter - self.failed_message_counter) / self.message_counter) * 100
+
+    def check_connection_quality(self):
+        """Monitor connection quality"""
+        current_time = time.monotonic()
+
+        # Check WiFi signal strength periodically
+        if current_time - self.last_rssi_check >= self.rssi_check_interval:
+            self.last_rssi_check = current_time
+            rssi = self.get_wifi_signal_strength()
+            if rssi and rssi < self.min_acceptable_rssi:
+                print(f"\n=== Poor WiFi Signal ===")
+                print(f"Current RSSI: {rssi}dB")
+                print(f"Min acceptable: {self.min_acceptable_rssi}dB")
+                print("Triggering WiFi reconnection...")
+                self.matrixportal.network.connect()
+
+        # Send heartbeat periodically
+        if current_time - self.last_heartbeat >= self.heartbeat_interval:
+            self.last_heartbeat = current_time
+            self.publish_status("online")
+
+        # Update connection quality based on message success rate
+        self.connection_quality = self.get_message_success_rate()
 
     def on_message(self, client, topic, message):
-        """Handle incoming MQTT messages"""
+        """Handle incoming MQTT messages with acknowledgment"""
         print("\n=== New Message Received ===")
         print(f"Topic: {topic}")
         print(f"Message: {message}")
+        
+        self.message_counter += 1
+        self.last_message_received = time.monotonic()
         
         try:
             # Parse the JSON message
             data = json.loads(message)
             
+            # Process the message
+            success = self.process_message(data)
+            
+            # Send acknowledgment if message_id is present
+            message_id = data.get("message_id")
+            if message_id and success:
+                ack_data = {
+                    "message_id": message_id,
+                    "status": "success",
+                    "timestamp": time.monotonic()
+                }
+                self.mqtt_client.publish(
+                    f"{secrets['mqtt_topic']}/ack",
+                    json.dumps(ack_data)
+                )
+            elif message_id:
+                self.failed_message_counter += 1
+                ack_data = {
+                    "message_id": message_id,
+                    "status": "failed",
+                    "timestamp": time.monotonic()
+                }
+                self.mqtt_client.publish(
+                    f"{secrets['mqtt_topic']}/ack",
+                    json.dumps(ack_data)
+                )
+                    
+        except Exception as e:
+            print(f"Error processing message: {e}")
+            self.failed_message_counter += 1
+            if "message_id" in locals():
+                try:
+                    self.mqtt_client.publish(
+                        f"{secrets['mqtt_topic']}/ack",
+                        json.dumps({
+                            "message_id": message_id,
+                            "status": "error",
+                            "error": str(e),
+                            "timestamp": time.monotonic()
+                        })
+                    )
+                except Exception as pub_error:
+                    print(f"Error publishing error acknowledgment: {pub_error}")
+        print("=========================\n")
+
+    def process_message(self, data):
+        """Process the message and return success status"""
+        try:
             # Clear any existing displays
             self.timer_manager.current_countdown = None
             self.timer_manager.stopwatch_start = None
@@ -695,35 +799,18 @@ class CountdownDisplay:
                         self.preset_manager.radio_group.hidden = not preset_config.get("show_radio", False)
                         
                         print(f"Preset {data['preset_id']} started successfully")
+            return True  # Return True if message was processed successfully
+            
         except Exception as e:
             print(f"Error processing message: {e}")
-        print("=========================\n")
-
-    def check_test_trigger(self):
-        """Check for test trigger file"""
-        try:
-            current_time = time.monotonic()
-            if current_time - self.last_check < 1:
-                return None
-                
-            self.last_check = current_time
-            
-            if TEST_FILE in os.listdir():
-                print("Found test file")
-                try:
-                    with open(TEST_FILE, "r") as f:
-                        data = json.loads(f.read())
-                    # Don't try to delete the file on read-only filesystem
-                    return data
-                except Exception as e:
-                    print("Error processing test file:", str(e))
-        except Exception as e:
-            print("Error checking trigger:", str(e))
-        return None
+            return False
 
     def update(self):
         """Main update loop with improved connection handling"""
         current_time = time.monotonic()
+
+        # Check connection quality first
+        self.check_connection_quality()
 
         # Handle network checks independently from timer updates
         need_network_check = (current_time - self.last_wifi_check >= self.get_retry_interval(self.wifi_retry_count)) or \
@@ -738,12 +825,31 @@ class CountdownDisplay:
             if not self.check_mqtt_connection():
                 return  # Don't proceed with MQTT operations if connection is down
 
-        # Process MQTT messages with minimal overhead
+        # Process MQTT messages with improved error handling
         if self.mqtt_client and self.mqtt_client.is_connected():
             try:
-                self.mqtt_client.loop(timeout=0.1)  # Match socket_timeout for consistency
-            except Exception as e:
-                if "pystack" not in str(e):  # Only log non-pystack errors
+                self.mqtt_client.loop(timeout=1.0)  # Match socket timeout
+            except OSError as e:
+                if "Failed to send" in str(e):
+                    # Enhanced logging for socket failures
+                    print("\n=== Socket Send Failure Detected ===")
+                    print(f"Error details: {e}")
+                    print(f"Current WiFi status: {'Connected' if self.matrixportal.network.is_connected else 'Disconnected'}")
+                    print(f"Current MQTT status: {'Connected' if self.mqtt_client.is_connected() else 'Disconnected'}")
+                    print(f"Time since last successful connection: {time.monotonic() - self.last_successful_connection:.2f}s")
+                    print(f"WiFi retry count: {self.wifi_retry_count}")
+                    print(f"MQTT retry count: {self.mqtt_retry_count}")
+                    print("Triggering reconnection sequence...")
+                    print("================================\n")
+                    
+                    # Socket send failure - trigger reconnection
+                    self.mqtt_retry_count += 1
+                    try:
+                        self.mqtt_client.disconnect()
+                        print("MQTT client disconnected cleanly")
+                    except Exception as disc_error:
+                        print(f"Error during disconnect: {disc_error}")
+                elif "pystack" not in str(e):  # Only log non-pystack errors
                     print(f"Error in MQTT loop: {e}")
 
         # Update display state regardless of network status
@@ -863,6 +969,81 @@ class CountdownDisplay:
     def set_background(self, color):
         """Set the background color"""
         self.background_palette[0] = color
+
+    def check_test_trigger(self):
+        """Check for test trigger file"""
+        try:
+            current_time = time.monotonic()
+            if current_time - self.last_check < 1:
+                return None
+                
+            self.last_check = current_time
+            
+            if TEST_FILE in os.listdir():
+                print("Found test file")
+                try:
+                    with open(TEST_FILE, "r") as f:
+                        data = json.loads(f.read())
+                    # Don't try to delete the file on read-only filesystem
+                    return data
+                except Exception as e:
+                    print("Error processing test file:", str(e))
+        except Exception as e:
+            print("Error checking trigger:", str(e))
+        return None
+
+    def setup_mqtt(self):
+        """Set up MQTT connection with proper error handling"""
+        try:
+            print("Connecting to MQTT broker...")
+            
+            # Create socket pool with buffer management
+            pool = adafruit_esp32spi_socketpool.SocketPool(self.matrixportal.network._wifi.esp)
+            
+            # Set up MQTT client with optimized settings
+            self.mqtt_client = MQTT.MQTT(
+                broker=secrets['mqtt_broker'],
+                port=secrets['mqtt_port'],
+                username=secrets['mqtt_user'],
+                password=secrets['mqtt_password'],
+                socket_pool=pool,
+                is_ssl=False,
+                keep_alive=30,  # More frequent keepalive
+                socket_timeout=1.0,  # Base timeout
+                recv_timeout=2.0     # Must be > socket_timeout
+            )
+
+            # Set up minimal callbacks to save memory
+            self.mqtt_client.on_message = self.on_message
+            self.mqtt_client.on_connect = self.on_connect
+
+            # Connect to MQTT broker
+            print(f"Attempting to connect to {secrets['mqtt_broker']} as {secrets['mqtt_user']}")
+            self.mqtt_client.connect()
+            
+            if self.mqtt_client.is_connected():
+                print("Connected to MQTT broker!")
+                self.mqtt_retry_count = 0
+                self.last_successful_connection = time.monotonic()
+                
+                # Subscribe only to main topic
+                try:
+                    self.mqtt_client.subscribe(secrets['mqtt_topic'])
+                    print(f"Subscribed to {secrets['mqtt_topic']}")
+                    return True
+                except Exception as e:
+                    print(f"Initial subscription failed: {e}")
+                    return False
+            else:
+                print("Failed to connect to MQTT broker")
+                return False
+
+        except Exception as e:
+            print(f"Error setting up MQTT: {e}")
+            self.mqtt_retry_count += 1
+            retry_interval = self.get_retry_interval(self.mqtt_retry_count)
+            print(f"Retrying in {retry_interval} seconds...")
+            return False
 
 # Main program
 print("Creating display object...")
