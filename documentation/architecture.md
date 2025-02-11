@@ -3,7 +3,7 @@
 ## Overview
 The HomeMatrixBoard system is a distributed IoT display system that shows countdown timers and preset displays on LED matrix displays. The system consists of three main components:
 
-1. **Webserver (172.16.234.39)**
+1. **Webserver (172.16.232.6)**
    - Debian 12 server running Flask application
    - Handles incoming Sigfox webhooks
    - Processes and forwards messages to MQTT broker
@@ -51,8 +51,8 @@ The HomeMatrixBoard system is a distributed IoT display system that shows countd
 ## Network Architecture
 ```ascii
 +-------------+     +---------------+     +------------------+
-| External    |---->| Webserver    |---->| MQTT Broker     |
-| Webhook     |     | 172.16.234.39|     | 172.16.234.55   |
+| External    |---->| SigfoxWebhost |---->|  MQTT Broker     |
+| Webhook     |     | 172.16.232.6  |     |  172.16.234.55   |
 +-------------+     +---------------+     +------------------+
                                                 |
                                                 |
@@ -78,7 +78,10 @@ The HomeMatrixBoard system is a distributed IoT display system that shows countd
 ## Testing
 Test webhook endpoint:
 ```bash
-curl "http://172.16.234.39/sigfox?name=wc&duration=60"
+curl "http://172.16.232.6/sigfox?name=wc&duration=60"
+curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
+curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=breaking"
+curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=score"       
 ```
 
 Test MQTT directly:

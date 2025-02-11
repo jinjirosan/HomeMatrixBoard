@@ -428,6 +428,7 @@ class CountdownDisplay:
         self.last_successful_connection = 0
         self.mqtt_client = None
         self.network_pool = None
+        self.startup_time = time.monotonic()
         
         # Add connection quality monitoring
         self.last_heartbeat = 0
@@ -436,9 +437,6 @@ class CountdownDisplay:
         self.connection_quality = 100  # Track connection quality (percentage)
         self.message_counter = 0  # Track total messages
         self.failed_message_counter = 0  # Track failed messages
-        self.last_rssi_check = 0
-        self.rssi_check_interval = 10  # Check signal strength every 10 seconds
-        self.min_acceptable_rssi = -70  # Minimum acceptable signal strength
 
         print("Initializing display...")
         try:
@@ -447,6 +445,27 @@ class CountdownDisplay:
                 status_neopixel=board.NEOPIXEL,
                 debug=True
             )
+            
+            # Wait for initial WiFi connection and report it
+            print("Connecting to WiFi...")
+            while not self.matrixportal.network.is_connected:
+                try:
+                    self.matrixportal.network.connect()
+                    if self.matrixportal.network.is_connected:
+                        print("WiFi connected successfully")
+                        print(f"IP Address: {self.matrixportal.network.ip_address}")
+                        break
+                except Exception as e:
+                    print(f"WiFi connection error: {e}")
+                    time.sleep(1)
+            
+            # Report initial WiFi connection
+            self.report_health_event("wifi_connected", {
+                "ip": self.matrixportal.network.ip_address,
+                "ssid": secrets['ssid'],
+                "reset_cause": str(microcontroller.cpu.reset_reason),
+                "firmware_version": "1.1.0"
+            })
             
             # Create main display group
             print("Init background")
@@ -502,6 +521,58 @@ class CountdownDisplay:
         delay = min(base_delay * (2 ** retry_count), max_delay)
         return delay
 
+    def report_health_event(self, event_type, data=None):
+        """Report health events to MQTT"""
+        if not self.mqtt_client or not self.mqtt_client.is_connected():
+            print(f"Cannot publish health event: {event_type}")
+            return
+            
+        try:
+            # Initialize data dict if None
+            if data is None:
+                data = {}
+                
+            health_data = {
+                "event": event_type,
+                "timestamp": time.monotonic(),
+                "uptime": time.monotonic() - self.startup_time,
+                "data": data
+            }
+            
+            # Publish to health topic
+            self.mqtt_client.publish(
+                f"{secrets['mqtt_topic']}/health",
+                json.dumps(health_data)
+            )
+            print(f"Published health event: {event_type}")
+        except Exception as e:
+            print(f"Error publishing health event: {e}")
+
+    def report_error(self, error_type, details):
+        """Report errors to MQTT"""
+        if not self.mqtt_client or not self.mqtt_client.is_connected():
+            print(f"Cannot publish error: {error_type}")
+            return
+            
+        try:
+            error_data = {
+                "type": error_type,
+                "timestamp": time.monotonic(),
+                "uptime": time.monotonic() - self.startup_time,
+                "details": details,
+                "system_state": {
+                    "wifi_connected": self.matrixportal.network.is_connected,
+                    "mqtt_connected": self.mqtt_client.is_connected() if self.mqtt_client else False,
+                    "retry_count": self.mqtt_retry_count
+                }
+            }
+            self.mqtt_client.publish(
+                f"{secrets['mqtt_topic']}/errors",
+                json.dumps(error_data)
+            )
+        except Exception as e:
+            print(f"Error publishing error: {e}")
+
     def check_wifi_connection(self):
         """Check and maintain WiFi connection with exponential backoff"""
         current_time = time.monotonic()
@@ -515,12 +586,21 @@ class CountdownDisplay:
         try:
             if not self.matrixportal.network.is_connected:
                 print("WiFi disconnected, attempting to reconnect...")
+                self.report_error("wifi_disconnected", {
+                    "retry_count": self.wifi_retry_count,
+                    "last_success": self.last_successful_connection
+                })
+                
                 self.matrixportal.network.connect()
                 if self.matrixportal.network.is_connected:
                     print("WiFi reconnected successfully")
                     print(f"IP Address: {self.matrixportal.network.ip_address}")
                     self.wifi_retry_count = 0
                     self.last_successful_connection = current_time
+                    self.report_health_event("wifi_connected", {
+                        "ip": self.matrixportal.network.ip_address,
+                        "signal": self.get_wifi_signal_strength()
+                    })
                     return True
                 else:
                     self.wifi_retry_count += 1
@@ -531,7 +611,12 @@ class CountdownDisplay:
                 self.wifi_retry_count = 0
                 return True
         except Exception as e:
-            print(f"Error during WiFi connection check: {e}")
+            error_msg = str(e)
+            print(f"Error during WiFi connection check: {error_msg}")
+            self.report_error("wifi_error", {
+                "error": error_msg,
+                "retry_count": self.wifi_retry_count
+            })
             self.wifi_retry_count += 1
             retry_interval = self.get_retry_interval(self.wifi_retry_count)
             print(f"Retrying in {retry_interval} seconds...")
@@ -554,6 +639,11 @@ class CountdownDisplay:
         try:
             if not self.mqtt_client.is_connected():
                 print("\n=== MQTT Reconnection Attempt ===")
+                self.report_error("mqtt_disconnected", {
+                    "retry_count": self.mqtt_retry_count,
+                    "last_success": self.last_successful_connection
+                })
+                
                 print(f"Last successful connection: {time.monotonic() - self.last_successful_connection:.2f}s ago")
                 print(f"Current retry count: {self.mqtt_retry_count}")
                 print(f"WiFi status: {'Connected' if self.matrixportal.network.is_connected else 'Disconnected'}")
@@ -568,6 +658,11 @@ class CountdownDisplay:
                     self.mqtt_retry_count = 0
                     self.last_successful_connection = current_time
                     
+                    # Report successful reconnection
+                    self.report_health_event("mqtt_connected", {
+                        "uptime": time.monotonic() - self.startup_time
+                    })
+                    
                     # Resubscribe with delay
                     time.sleep(0.5)  # Wait for connection to stabilize
                     try:
@@ -576,7 +671,11 @@ class CountdownDisplay:
                         print("==============================\n")
                         return True
                     except Exception as e:
-                        print(f"Resubscription failed: {e}")
+                        error_msg = str(e)
+                        print(f"Resubscription failed: {error_msg}")
+                        self.report_error("mqtt_subscription_failed", {
+                            "error": error_msg
+                        })
                         print("==============================\n")
                         return False
                 else:
@@ -589,8 +688,13 @@ class CountdownDisplay:
                 self.mqtt_retry_count = 0
                 return True
         except Exception as e:
+            error_msg = str(e)
             print("\n=== MQTT Connection Error ===")
-            print(f"Error details: {e}")
+            self.report_error("mqtt_error", {
+                "error": error_msg,
+                "retry_count": self.mqtt_retry_count
+            })
+            print(f"Error details: {error_msg}")
             print(f"WiFi status: {'Connected' if self.matrixportal.network.is_connected else 'Disconnected'}")
             print(f"Time since last success: {time.monotonic() - self.last_successful_connection:.2f}s")
             print(f"Current retry count: {self.mqtt_retry_count}")
@@ -626,8 +730,12 @@ class CountdownDisplay:
         try:
             status_data = {
                 "status": status,
-                "uptime": time.monotonic(),
-                "wifi_signal": self.get_wifi_signal_strength(),
+                "uptime": time.monotonic() - self.startup_time,
+                "wifi": {
+                    "connected": self.matrixportal.network.is_connected,
+                    "ip": self.matrixportal.network.ip_address if self.matrixportal.network.is_connected else None,
+                    "ssid": secrets['ssid']
+                },
                 "connection_quality": self.connection_quality,
                 "message_success_rate": self.get_message_success_rate()
             }
@@ -642,11 +750,8 @@ class CountdownDisplay:
             self.connection_quality = max(0, self.connection_quality - 10)
 
     def get_wifi_signal_strength(self):
-        """Get WiFi signal strength (RSSI)"""
-        try:
-            return self.matrixportal.network._wifi.esp.rssi
-        except:
-            return None
+        """Get WiFi signal strength (RSSI) - currently not supported"""
+        return None  # RSSI not reliably available on this hardware
 
     def get_message_success_rate(self):
         """Calculate message success rate"""
@@ -657,17 +762,6 @@ class CountdownDisplay:
     def check_connection_quality(self):
         """Monitor connection quality"""
         current_time = time.monotonic()
-
-        # Check WiFi signal strength periodically
-        if current_time - self.last_rssi_check >= self.rssi_check_interval:
-            self.last_rssi_check = current_time
-            rssi = self.get_wifi_signal_strength()
-            if rssi and rssi < self.min_acceptable_rssi:
-                print(f"\n=== Poor WiFi Signal ===")
-                print(f"Current RSSI: {rssi}dB")
-                print(f"Min acceptable: {self.min_acceptable_rssi}dB")
-                print("Triggering WiFi reconnection...")
-                self.matrixportal.network.connect()
 
         # Send heartbeat periodically
         if current_time - self.last_heartbeat >= self.heartbeat_interval:
