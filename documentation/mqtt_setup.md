@@ -100,6 +100,9 @@ mosquitto_sub -h localhost -u bathroom_display -P <password> -t "home/displays/b
 
 # Test Eva display topic
 mosquitto_sub -h localhost -u eva_display -P <password> -t "home/displays/eva"
+
+# test subscribe to all top
+mosquitto_sub -v -u monitor_system -P system1234 -t "home/displays/wc/status" -t "home/displays/wc/health" -t "home/displays/wc/errors"
 ```
 
 ### 2. Publish Test Messages

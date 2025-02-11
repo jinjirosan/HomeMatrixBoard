@@ -1,8 +1,7 @@
 # Webhook Integration Guide
 
-## Endpoint Details
-- URL: http://172.16.234.39/sigfox
-- Methods: GET, POST
+## Endpoint
+- URL: http://172.16.232.6/sigfox
 
 ## Required Parameters
 
@@ -18,27 +17,27 @@
 - `duration`: Time in seconds (optional)
 - `text`: Override text (optional)
 
-## Example Requests
+## Examples
 
 ### Timer Mode
 ```bash
-# Basic timer example
-curl "http://172.16.234.39/sigfox?target=wc&text=Shower&duration=60"
+# Start a 60-second timer on WC display
+curl "http://172.16.232.6/sigfox?target=wc&text=Shower&duration=60"
 
-# Examples with spaces in text (use %20 or + for spaces)
-curl "http://172.16.234.39/sigfox?target=wc&text=WC%20over&duration=60"
+# Start a 60-second timer with URL-encoded text
+curl "http://172.16.232.6/sigfox?target=wc&text=WC%20over&duration=60"
 ```
 
 ### Preset Mode
 ```bash
-# Basic preset example
-curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=on_air"
+# Activate "On Air" preset on WC display
+curl "http://172.16.232.6/sigfox?target=wc&mode=preset&preset_id=on_air"
 
-# Preset with duration
-curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=score&duration=3600"
+# Activate "Score" preset with 1-hour duration
+curl "http://172.16.232.6/sigfox?target=wc&mode=preset&preset_id=score&duration=3600"
 
-# Preset with custom text
-curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=breaking&text=News%20Flash"
+# Activate "Breaking" preset with custom text
+curl "http://172.16.232.6/sigfox?target=wc&mode=preset&preset_id=breaking&text=News%20Flash"
 ```
 
 ### POST Request Examples
@@ -46,12 +45,12 @@ curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=breaking&text=
 # Timer mode POST
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","text":"WC over","duration":"60"}' \
-     http://172.16.234.39/sigfox
+     http://172.16.232.6/sigfox
 
 # Preset mode POST
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","mode":"preset","preset_id":"on_air","duration":3600}' \
-     http://172.16.234.39/sigfox
+     http://172.16.232.6/sigfox
 ```
 
 ## Available Presets
@@ -90,3 +89,18 @@ After making changes to `app.py`, restart the service:
 ```bash
 sudo systemctl restart sigfox-bridge
 ```
+
+## Sigfox Backend Configuration
+
+### Callback Type
+- Type: URL
+- Channel: UPLINK
+- URL Pattern: 
+  ```
+  http://172.16.232.6/sigfox
+  ```
+
+### Custom Parameters
+- target={customData#target}
+- text={customData#text}
+- duration={customData#duration}

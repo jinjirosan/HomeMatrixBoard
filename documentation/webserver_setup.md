@@ -170,7 +170,7 @@ Add the following configuration:
 ```nginx
 server {
     listen 80;
-    server_name 172.16.234.39;
+    server_name 172.16.232.6;
 
     location / {
         proxy_pass http://127.0.0.1:5000;
@@ -196,28 +196,28 @@ sudo systemctl restart nginx
 Test the webhook endpoint:
 ```bash
 # Test timer mode (GET)
-curl "http://172.16.234.39/sigfox?target=wc&text=Shower&duration=60"
+curl "http://172.16.232.6/sigfox?target=wc&text=Shower&duration=60"
 
 # Test preset mode (GET)
-curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=on_air"
+curl "http://172.16.232.6/sigfox?target=wc&mode=preset&preset_id=on_air"
 
 # Test preset with custom name and duration (GET)
-curl "http://172.16.234.39/sigfox?target=wc&mode=preset&preset_id=on_air&name=Studio%201&duration=3600"
+curl "http://172.16.232.6/sigfox?target=wc&mode=preset&preset_id=on_air&name=Studio%201&duration=3600"
 
 # Test timer mode (POST)
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","text":"Shower","duration":60}' \
-     http://172.16.234.39/sigfox
+     http://172.16.232.6/sigfox
 
 # Test preset mode (POST)
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","mode":"preset","preset_id":"on_air"}' \
-     http://172.16.234.39/sigfox
+     http://172.16.232.6/sigfox
 
 # Test preset with custom name and duration (POST)
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","mode":"preset","preset_id":"on_air","name":"Studio 1","duration":3600}' \
-     http://172.16.234.39/sigfox
+     http://172.16.232.6/sigfox
 ```
 
 ## Troubleshooting

@@ -25,7 +25,7 @@ This system integrates Sigfox webhooks with MQTT messaging to control multiple M
   - Troubleshooting and maintenance
 
 ## Quick Start
-1. Send webhook to: `http://172.16.234.39/sigfox?name=<display_name>&duration=<seconds>`
+1. Send webhook to: `http://172.16.232.6/sigfox?name=<display_name>&duration=<seconds>`
 2. Supported display names: wc, bathroom, eva
 3. Duration in seconds (e.g., 60 for one minute)
 4. Monitor display's serial output for connection status 

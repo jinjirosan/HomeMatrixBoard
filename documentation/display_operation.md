@@ -148,11 +148,12 @@ mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
 ### 2. Webhook Testing
 ```bash
 # Test timer via webserver
-curl "http://172.16.234.39/sigfox?name=wc&duration=60"
+curl "http://172.16.232.6/sigfox?name=wc&duration=60"
 
 # Test preset via webserver
-curl "http://172.16.234.39/sigfox?mode=preset&preset_id=on_air&name=wc"
+curl "http://172.16.232.6/sigfox?mode=preset&preset_id=on_air&name=wc"
 ```
+
 
 ## Troubleshooting
 
