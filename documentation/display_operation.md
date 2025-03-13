@@ -76,6 +76,13 @@ Messages can be formatted in two ways:
 - Border: Blinking red
 - Usage: `{"mode": "preset", "preset_id": "breaking"}`
 
+### 4. Reset Preset
+- Background: Black
+- Text: None
+- Border: None
+- Resets display to initial state
+- Usage: `{"mode": "preset", "preset_id": "reset"}`
+
 ## MQTT Topics
 Each display subscribes to a specific topic:
 - WC Display: `home/displays/wc`

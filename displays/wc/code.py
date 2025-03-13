@@ -377,6 +377,14 @@ class PresetManager:
                 "border_mode": "blinking",
                 "border_color": RED,
                 "show_radio": False
+            },
+            "reset": {
+                "background": BLACK,     # Black background
+                "text": "",             # No text
+                "text_color": WHITE,    # Default text color
+                "border_mode": "none",  # No border
+                "border_color": RED,    # Default border color
+                "show_radio": False     # No radio symbol
             }
         }
         

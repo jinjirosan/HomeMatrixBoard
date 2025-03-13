@@ -81,7 +81,8 @@ Test webhook endpoint:
 curl "http://172.16.232.6/sigfox?name=wc&duration=60"
 curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
 curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=breaking"
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=score"       
+curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=score"
+curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=reset"       
 ```
 
 Test MQTT directly:

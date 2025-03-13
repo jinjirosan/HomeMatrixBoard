@@ -66,6 +66,12 @@ curl -X POST -H "Content-Type: application/json" \
    - Blue background with white "BREAKING" text
    - Blinking red border
 
+4. Reset (`preset_id=reset`)
+   - Black background with no text
+   - No border
+   - Resets display to initial state
+   - Usage: `curl "http://172.16.232.6/sigfox?target=wc&mode=preset&preset_id=reset"`
+
 ## Response Codes
 - 200: Success
 - 400: Invalid parameters or missing required fields
