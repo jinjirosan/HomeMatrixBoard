@@ -91,4 +91,5 @@ fastlane/test_output
 
 settings.toml
 secrets.py
-app.py
+mqtt_credentials.py
+*_credentials.py
