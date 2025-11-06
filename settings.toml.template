@@ -1,0 +1,18 @@
+# Wi-Fi Configuration
+# 
+# Copy this file to settings.toml and fill in your actual credentials
+# DO NOT commit settings.toml to git!
+
+CIRCUITPY_WIFI_SSID = "YOUR_WIFI_NETWORK_NAME"
+CIRCUITPY_WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"
+
+# MQTT Configuration
+MQTT_BROKER = "YOUR_MQTT_BROKER_IP"  # e.g., "192.168.1.100" or "test.mosquitto.org" for testing
+MQTT_PORT = 1883
+MQTT_TOPIC = "homematrix/countdown"  # Topic to subscribe to
+TEST_MODE = True  # Set to True to enable test mode without MQTT
+
+# Optional: Adafruit IO or other services
+# ADAFRUIT_IO_USERNAME = "your_adafruit_io_username"
+# ADAFRUIT_IO_KEY = "your_adafruit_io_key"
+
