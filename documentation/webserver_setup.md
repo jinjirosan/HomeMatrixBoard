@@ -29,7 +29,7 @@ python3 -m venv venv
 source venv/bin/activate
 
 # Install Python dependencies
-pip install flask paho-mqtt gunicorn
+pip install flask paho-mqtt gunicorn spotipy
 ```
 
 ### 3. Application Configuration

@@ -9,6 +9,7 @@ import supervisor
 import microcontroller
 from adafruit_matrixportal.matrixportal import MatrixPortal
 from adafruit_display_text.label import Label
+from adafruit_display_text.scrolling_label import ScrollingLabel
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
 from adafruit_esp32spi import adafruit_esp32spi_socketpool
 
@@ -110,6 +111,37 @@ class DisplayText:
             label.x = self.center_text_position(text)
             print(f"Text length changed, new position: x={label.x} y={label.y}")
         label.text = text
+    
+    def update_text_with_scrolling(self, text, label, y_position, max_chars=10):
+        """Update text with scrolling if it's too long"""
+        text_width = len(text) * 6
+        max_width = max_chars * 6
+        
+        # Remove old scrolling label if it exists
+        if hasattr(label, '_scrolling_label'):
+            self.text_group.remove(label._scrolling_label)
+            delattr(label, '_scrolling_label')
+        
+        if text_width > max_width:
+            # Use scrolling label for long text
+            scrolling_label = ScrollingLabel(
+                terminalio.FONT,
+                text=text,
+                color=label.color,
+                max_characters=max_chars,
+                animate_time=0.3,
+                x=0,
+                y=y_position
+            )
+            label._scrolling_label = scrolling_label
+            # Hide the regular label and show scrolling one
+            label.text = ""
+            label.x = -1000  # Move off screen
+            if scrolling_label not in self.text_group:
+                self.text_group.append(scrolling_label)
+        else:
+            # Use regular label for short text
+            self.update_text(text, label, y_position)
 
 class BorderManager:
     def __init__(self, matrixportal):
@@ -385,6 +417,14 @@ class PresetManager:
                 "border_mode": "none",  # No border
                 "border_color": RED,    # Default border color
                 "show_radio": False     # No radio symbol
+            },
+            "music": {
+                "background": 0x800080,  # Purple background
+                "text": "NO TRACK DATA",  # Error message when no track info
+                "text_color": 0xFFFFFF,  # White text
+                "border_mode": "animated",
+                "border_color": 0xFF00FF,  # Magenta border
+                "show_radio": False
             }
         }
         
@@ -873,20 +913,46 @@ class CountdownDisplay:
                 if "preset_id" in data:
                     name = data.get("name", "")  # Optional name override
                     duration = data.get("duration")  # Optional duration
+                    artist = data.get("artist", "")  # Optional artist (for music preset)
+                    song = data.get("song", "")  # Optional song (for music preset)
+                    
                     if self.preset_manager.start_preset(data["preset_id"], name, duration):
                         preset_config = self.preset_manager.presets[data["preset_id"]]
                         
                         # First set the background color
                         self.set_background(preset_config["background"])
                         
-                        # Update text and its color
-                        display_text = name if name else preset_config["text"]
-                        self.text_manager.title_label.color = preset_config["text_color"]
-                        self.text_manager.update_text(display_text, self.text_manager.title_label, 8)
-                        
-                        # Clear timer text
-                        self.text_manager.timer_label.color = preset_config["text_color"]
-                        self.text_manager.update_text("", self.text_manager.timer_label, 20)
+                        # Special handling for music preset - two lines with scrolling
+                        if data["preset_id"] == "music":
+                            # Use two lines: artist on top, song on bottom
+                            display_artist = artist if artist else "Unknown Artist"
+                            display_song = song if song else "Unknown Song"
+                            
+                            self.text_manager.title_label.color = preset_config["text_color"]
+                            self.text_manager.timer_label.color = preset_config["text_color"]
+                            
+                            # Use scrolling for long text (max 10 chars per line for 64px width)
+                            self.text_manager.update_text_with_scrolling(
+                                display_artist, 
+                                self.text_manager.title_label, 
+                                8, 
+                                max_chars=10
+                            )
+                            self.text_manager.update_text_with_scrolling(
+                                display_song, 
+                                self.text_manager.timer_label, 
+                                20, 
+                                max_chars=10
+                            )
+                        else:
+                            # Regular preset handling
+                            display_text = name if name else preset_config["text"]
+                            self.text_manager.title_label.color = preset_config["text_color"]
+                            self.text_manager.update_text(display_text, self.text_manager.title_label, 8)
+                            
+                            # Clear timer text
+                            self.text_manager.timer_label.color = preset_config["text_color"]
+                            self.text_manager.update_text("", self.text_manager.timer_label, 20)
                         
                         # Set border color and mode
                         self.border_manager.border_palette[1] = preset_config["border_color"]

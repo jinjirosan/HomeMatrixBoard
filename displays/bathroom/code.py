@@ -10,6 +10,7 @@ import microcontroller
 import watchdog
 from adafruit_matrixportal.matrixportal import MatrixPortal
 from adafruit_display_text.label import Label
+from adafruit_display_text.scrolling_label import ScrollingLabel
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
 from adafruit_esp32spi import adafruit_esp32spi_socketpool
 
@@ -109,6 +110,37 @@ class DisplayText:
             label.x = self.center_text_position(text)
             print(f"Text length changed, new position: x={label.x} y={label.y}")
         label.text = text
+    
+    def update_text_with_scrolling(self, text, label, y_position, max_chars=10):
+        """Update text with scrolling if it's too long"""
+        text_width = len(text) * 6
+        max_width = max_chars * 6
+        
+        # Remove old scrolling label if it exists
+        if hasattr(label, '_scrolling_label'):
+            self.text_group.remove(label._scrolling_label)
+            delattr(label, '_scrolling_label')
+        
+        if text_width > max_width:
+            # Use scrolling label for long text
+            scrolling_label = ScrollingLabel(
+                terminalio.FONT,
+                text=text,
+                color=label.color,
+                max_characters=max_chars,
+                animate_time=0.3,
+                x=0,
+                y=y_position
+            )
+            label._scrolling_label = scrolling_label
+            # Hide the regular label and show scrolling one
+            label.text = ""
+            label.x = -1000  # Move off screen
+            if scrolling_label not in self.text_group:
+                self.text_group.append(scrolling_label)
+        else:
+            # Use regular label for short text
+            self.update_text(text, label, y_position)
 
 class BorderManager:
     def __init__(self, matrixportal):
@@ -308,6 +340,94 @@ class TimerManager:
             "update": False
         }
 
+class PresetManager:
+    """Manages preset display configurations"""
+    def __init__(self, matrixportal):
+        self.matrixportal = matrixportal
+        self.current_preset = None
+        self.preset_start = None
+        self.preset_duration = None
+        
+        # Define preset configurations
+        self.presets = {
+            "on_air": {
+                "background": BLACK,
+                "text": "ON AIR",
+                "text_color": RED,
+                "border_mode": "solid",
+                "border_color": WHITE,
+                "show_radio": False
+            },
+            "score": {
+                "background": 0x00FF00,  # Green
+                "text": "SCORE",
+                "text_color": 0xFFFF00,  # Yellow
+                "border_mode": "animated",
+                "border_color": 0xFFFF00,
+                "show_radio": False
+            },
+            "breaking": {
+                "background": 0x0000FF,  # Blue
+                "text": "BREAKING",
+                "text_color": WHITE,
+                "border_mode": "blinking",
+                "border_color": RED,
+                "show_radio": False
+            },
+            "reset": {
+                "background": BLACK,
+                "text": "",
+                "text_color": WHITE,
+                "border_mode": "none",
+                "border_color": RED,
+                "show_radio": False
+            },
+            "music": {
+                "background": 0x800080,  # Purple background
+                "text": "NO TRACK DATA",  # Error message when no track info
+                "text_color": 0xFFFFFF,  # White text
+                "border_mode": "animated",
+                "border_color": 0xFF00FF,  # Magenta border
+                "show_radio": False
+            }
+        }
+        
+    def start_preset(self, preset_id, name=None, duration=None):
+        """Start displaying a preset configuration"""
+        if preset_id not in self.presets:
+            print(f"Unknown preset: {preset_id}")
+            return False
+            
+        self.current_preset = preset_id
+        self.preset_start = time.monotonic()
+        self.preset_duration = duration
+        return True
+        
+    def update_preset(self, current_time):
+        """Update preset state"""
+        if not self.current_preset:
+            return None
+            
+        # Check if preset should expire
+        if self.preset_duration and (current_time - self.preset_start >= self.preset_duration):
+            preset_id = self.current_preset
+            self.current_preset = None
+            self.preset_start = None
+            self.preset_duration = None
+            return {"type": "preset_end", "preset": preset_id}
+            
+        return {
+            "type": "preset",
+            "preset": self.current_preset,
+            "config": self.presets[self.current_preset]
+        }
+        
+    def clear_preset(self):
+        """Clear current preset"""
+        self.current_preset = None
+        self.preset_start = None
+        self.preset_duration = None
+
 class CountdownDisplay:
     def __init__(self):
         print("Initializing display...")
@@ -331,6 +451,9 @@ class CountdownDisplay:
             
             # Initialize text second (top layer)
             self.text_manager = DisplayText(self.matrixportal)
+            
+            # Initialize preset manager
+            self.preset_manager = PresetManager(self.matrixportal)
             
             # Initialize timer
             self.timer_manager = TimerManager()
@@ -457,11 +580,90 @@ class CountdownDisplay:
         try:
             # Parse the JSON message
             data = json.loads(message)
-            if "name" in data and "duration" in data:
-                if self.timer_manager.start_countdown(data["name"], data["duration"]):
-                    self.text_manager.update_text(data["name"], self.text_manager.title_label, 8)
-                    self.border_manager.set_solid_border()  # Show solid border when countdown starts
-                    print("Countdown started successfully")
+            
+            # Clear any existing displays
+            self.timer_manager.current_countdown = None
+            self.timer_manager.stopwatch_start = None
+            self.timer_manager.done_start = None
+            self.preset_manager.clear_preset()
+            
+            # Reset display to default state
+            self.text_manager.update_text("", self.text_manager.title_label, 8)
+            self.text_manager.update_text("", self.text_manager.timer_label, 20)
+            self.border_manager.clear_border()
+            
+            # Check message mode (defaults to "timer" for backward compatibility)
+            mode = data.get("mode", "timer")
+            
+            if mode == "timer":
+                # Set default colors for timer mode
+                self.matrixportal.set_background(BLACK)
+                self.text_manager.title_label.color = WHITE
+                self.text_manager.timer_label.color = WHITE
+                self.border_manager.border_palette[1] = RED  # Reset border to default red
+                
+                if "name" in data and "duration" in data:
+                    if self.timer_manager.start_countdown(data["name"], data["duration"]):
+                        self.text_manager.update_text(data["name"], self.text_manager.title_label, 8)
+                        self.border_manager.set_solid_border()
+                        print("Countdown started successfully")
+            elif mode == "preset":
+                if "preset_id" in data:
+                    name = data.get("name", "")  # Optional name override
+                    duration = data.get("duration")  # Optional duration
+                    artist = data.get("artist", "")  # Optional artist (for music preset)
+                    song = data.get("song", "")  # Optional song (for music preset)
+                    
+                    if self.preset_manager.start_preset(data["preset_id"], name, duration):
+                        preset_config = self.preset_manager.presets[data["preset_id"]]
+                        
+                        # Set the background color
+                        self.matrixportal.set_background(preset_config["background"])
+                        
+                        # Special handling for music preset - two lines with scrolling
+                        if data["preset_id"] == "music":
+                            # Use two lines: artist on top, song on bottom
+                            display_artist = artist if artist else "Unknown Artist"
+                            display_song = song if song else "Unknown Song"
+                            
+                            self.text_manager.title_label.color = preset_config["text_color"]
+                            self.text_manager.timer_label.color = preset_config["text_color"]
+                            
+                            # Use scrolling for long text (max 10 chars per line for 64px width)
+                            self.text_manager.update_text_with_scrolling(
+                                display_artist, 
+                                self.text_manager.title_label, 
+                                8, 
+                                max_chars=10
+                            )
+                            self.text_manager.update_text_with_scrolling(
+                                display_song, 
+                                self.text_manager.timer_label, 
+                                20, 
+                                max_chars=10
+                            )
+                        else:
+                            # Regular preset handling
+                            display_text = name if name else preset_config["text"]
+                            self.text_manager.title_label.color = preset_config["text_color"]
+                            self.text_manager.update_text(display_text, self.text_manager.title_label, 8)
+                            
+                            # Clear timer text
+                            self.text_manager.timer_label.color = preset_config["text_color"]
+                            self.text_manager.update_text("", self.text_manager.timer_label, 20)
+                        
+                        # Set border color and mode
+                        self.border_manager.border_palette[1] = preset_config["border_color"]
+                        if preset_config["border_mode"] == "solid":
+                            self.border_manager.set_solid_border()
+                        elif preset_config["border_mode"] == "animated":
+                            self.border_manager.set_animated()
+                        elif preset_config["border_mode"] == "blinking":
+                            self.border_manager.set_blinking()
+                        elif preset_config["border_mode"] == "none":
+                            self.border_manager.clear_border()
+                        
+                        print(f"Preset {data['preset_id']} started successfully")
         except Exception as e:
             print(f"Error processing message: {e}")
         print("=========================\n")
@@ -512,13 +714,59 @@ class CountdownDisplay:
                 self.setup_mqtt()  # Try to reconnect
                 return
             
+            # Update preset state if active
+            if self.preset_manager.current_preset:
+                state = self.preset_manager.update_preset(current_time)
+                if state:
+                    if state["type"] == "preset_end":
+                        # Clear display when preset expires
+                        self.border_manager.clear_border()
+                        self.text_manager.update_text("", self.text_manager.title_label, 8)
+                        self.text_manager.update_text("", self.text_manager.timer_label, 20)
+                        self.matrixportal.set_background(BLACK)
+                return
+            
             # Check for new countdown trigger (keep file-based trigger for testing)
             if not self.timer_manager.current_countdown and not self.timer_manager.stopwatch_start and not self.timer_manager.done_start:
                 trigger = self.check_test_trigger()
                 if trigger:
-                    if self.timer_manager.start_countdown(trigger["name"], trigger["duration"]):
-                        self.text_manager.update_text(trigger["name"], self.text_manager.title_label, 8)
-                        self.border_manager.set_solid_border()
+                    mode = trigger.get("mode", "timer")
+                    if mode == "timer":
+                        # Set default colors for timer mode
+                        self.matrixportal.set_background(BLACK)
+                        self.text_manager.title_label.color = WHITE
+                        self.text_manager.timer_label.color = WHITE
+                        self.border_manager.border_palette[1] = RED  # Reset border to default red
+                        
+                        if self.timer_manager.start_countdown(trigger["name"], trigger["duration"]):
+                            self.text_manager.update_text(trigger["name"], self.text_manager.title_label, 8)
+                            self.border_manager.set_solid_border()
+                    elif mode == "preset" and "preset_id" in trigger:
+                        if self.preset_manager.start_preset(trigger["preset_id"], trigger.get("name"), trigger.get("duration")):
+                            preset_config = self.preset_manager.presets[trigger["preset_id"]]
+                            
+                            # Set the background color
+                            self.matrixportal.set_background(preset_config["background"])
+                            
+                            # Update text and its color
+                            display_text = trigger.get("name", "") if trigger.get("name") else preset_config["text"]
+                            self.text_manager.title_label.color = preset_config["text_color"]
+                            self.text_manager.update_text(display_text, self.text_manager.title_label, 8)
+                            
+                            # Clear timer text
+                            self.text_manager.timer_label.color = preset_config["text_color"]
+                            self.text_manager.update_text("", self.text_manager.timer_label, 20)
+                            
+                            # Set border color and mode
+                            self.border_manager.border_palette[1] = preset_config["border_color"]
+                            if preset_config["border_mode"] == "solid":
+                                self.border_manager.set_solid_border()
+                            elif preset_config["border_mode"] == "animated":
+                                self.border_manager.set_animated()
+                            elif preset_config["border_mode"] == "blinking":
+                                self.border_manager.set_blinking()
+                            elif preset_config["border_mode"] == "none":
+                                self.border_manager.clear_border()
                 return
             
             # Update timer state

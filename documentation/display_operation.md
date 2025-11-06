@@ -17,11 +17,13 @@ The system uses MatrixPortal M4 LED matrix displays to show countdown timers. Ea
    - "DONE" message when complete
 
 2. Preset Displays
-   - "On Air" - Red background with white text
+   - "On Air" - Black background with red text
    - "Score" - Green background with yellow text
    - "Breaking" - Blue background with white text
+   - "Music" - Purple background with white text (two-line display)
    - Configurable display duration
    - Custom border animations per preset
+   - Automatic text scrolling for long text
 
 3. Status Indicators
    - WiFi connection status
@@ -51,8 +53,24 @@ Messages can be formatted in two ways:
 }
 ```
 - `mode`: Set to "preset" for preset displays
-- `preset_id`: One of: "on_air", "score", "breaking"
-- `name`: Optional custom text override
+- `preset_id`: One of: "on_air", "score", "breaking", "music", "reset"
+- `name`: Optional custom text override (not used for music preset)
+- `duration`: Optional display duration in seconds
+
+3. Music Preset Mode (Special Format):
+```json
+{
+    "mode": "preset",
+    "preset_id": "music",
+    "artist": "The Beatles",    // Required for music preset
+    "song": "Hey Jude",         // Required for music preset
+    "duration": 30              // Optional, auto-clear after duration
+}
+```
+- `mode`: Must be "preset"
+- `preset_id`: Must be "music"
+- `artist`: Artist name (displayed on top line, scrolls if >10 chars)
+- `song`: Song name (displayed on bottom line, scrolls if >10 chars)
 - `duration`: Optional display duration in seconds
 
 ## Available Presets
@@ -76,7 +94,17 @@ Messages can be formatted in two ways:
 - Border: Blinking red
 - Usage: `{"mode": "preset", "preset_id": "breaking"}`
 
-### 4. Reset Preset
+### 4. Music Preset
+- Background: Purple (0x800080)
+- Text: Two-line display
+  - Top line: Artist name (white text)
+  - Bottom line: Song name (white text)
+- Border: Animated magenta (0xFF00FF)
+- Text Scrolling: Automatically scrolls if text exceeds 10 characters per line
+- Usage: `{"mode": "preset", "preset_id": "music", "artist": "Artist Name", "song": "Song Name"}`
+- Error State: Shows "NO TRACK DATA" if artist/song not provided
+
+### 5. Reset Preset
 - Background: Black
 - Text: None
 - Border: None
@@ -150,6 +178,10 @@ mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
 # Test preset mode
 mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
     -t "home/displays/wc" -m '{"mode": "preset", "preset_id": "on_air", "duration": 3600}'
+
+# Test music preset mode
+mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
+    -t "home/displays/wc" -m '{"mode": "preset", "preset_id": "music", "artist": "The Beatles", "song": "Hey Jude", "duration": 30}'
 ```
 
 ### 2. Webhook Testing
@@ -159,6 +191,11 @@ curl "http://172.16.232.6/sigfox?name=wc&duration=60"
 
 # Test preset via webserver
 curl "http://172.16.232.6/sigfox?mode=preset&preset_id=on_air&name=wc"
+
+# Test music preset via webserver (requires artist and song)
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"target":"wc","mode":"preset","preset_id":"music","artist":"The Beatles","song":"Hey Jude","duration":30}' \
+     http://172.16.232.6:52341/sigfox
 ```
 
 

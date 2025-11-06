@@ -74,7 +74,7 @@ secrets = {
      - adafruit_matrixportal
      - adafruit_minimqtt
      - adafruit_esp32spi
-     - adafruit_display_text
+     - adafruit_display_text (including scrolling_label.mpy)
      - Other required libraries
 
 ### 4. Test the Display
@@ -143,8 +143,27 @@ curl "http://172.16.232.6:52341/sigfox?target=wc&text=Test&duration=10"
 # Test preset mode
 curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
 
+# Test music preset mode
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"target":"wc","mode":"preset","preset_id":"music","artist":"Test Artist","song":"Test Song","duration":30}' \
+     http://172.16.232.6:52341/sigfox
+
 # Reset display
 curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=reset"
 ```
 
-Replace `wc` with the appropriate target for your display (wc, bathroom, eva). 
+Replace `wc` with the appropriate target for your display (wc, bathroom, eva).
+
+## Display Features
+
+### Text Scrolling
+- Long text (>10 characters) automatically scrolls horizontally
+- Short text is centered and displayed normally
+- Applies to both timer mode titles and preset mode text
+- Music preset uses scrolling for both artist and song lines
+
+### Two-Line Display
+- Music preset uses two lines:
+  - Top line (y=8): Artist name
+  - Bottom line (y=20): Song name
+- Both lines support automatic scrolling for long text 
