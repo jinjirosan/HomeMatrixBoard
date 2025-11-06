@@ -93,3 +93,6 @@ settings.toml
 secrets.py
 mqtt_credentials.py
 *_credentials.py
+
+# Spotify OAuth token cache
+.spotify_cache
