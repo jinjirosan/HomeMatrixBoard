@@ -67,6 +67,7 @@ secrets = {
      - `displays/wc/code.py` for WC display
      - `displays/bathroom/code.py` for Bathroom display
      - `displays/eva/code.py` for Eva display
+   - Or use the template: `templates/display_code_py/spotify/code.py` (includes Spotify support)
 
 2. **Copy the lib folder** from the repository to the CIRCUITPY drive:
    - Make sure all required libraries are included
@@ -77,7 +78,7 @@ secrets = {
      - adafruit_display_text (including scrolling_label.mpy)
      - Other required libraries
 
-### 4. Test the Display
+### 4. Verify Installation
 
 1. **Safely eject** the CIRCUITPY drive from your computer
 2. **Power cycle** the MatrixPortal M4 (disconnect and reconnect power)
@@ -87,7 +88,7 @@ secrets = {
    - Subscribe to its topic
    - Show its ready state (waiting for messages)
 
-## Troubleshooting
+## Troubleshooting Setup Issues
 
 ### Serial Console
 
@@ -96,7 +97,7 @@ For debugging, connect to the serial console:
 - Connect at 115200 baud
 - Example: `screen /dev/tty.usbmodem* 115200`
 
-### Common Issues
+### Common Setup Issues
 
 1. **Display not connecting to WiFi**
    - Check the SSID and password in secrets.py
@@ -105,22 +106,20 @@ For debugging, connect to the serial console:
 
 2. **Display not connecting to MQTT**
    - Check the MQTT broker IP address
-   - Verify the MQTT credentials
+   - Verify the MQTT credentials match those in the broker
    - Ensure the MQTT broker is running and accessible
+   - See [MQTT Broker Setup](mqtt_broker_setup.md) for broker configuration
 
-3. **Display not receiving messages**
-   - Verify the MQTT topic matches the expected format
-   - Check that the webserver is publishing to the correct topic
-   - Test by publishing a message directly to the topic:
-     ```bash
-     mosquitto_pub -h 172.16.234.55 -u mqtt_username -P mqtt_password \
-         -t "home/displays/wc" -m '{"name": "Test", "duration": 15}'
-     ```
-
-4. **Display showing errors or not updating**
+3. **Display showing errors or not updating**
    - Check the serial console for error messages
    - Ensure all required libraries are installed
    - Try resetting the device (press the reset button)
+   - Verify memory optimizations are in place (bit_depth=6)
+
+4. **Memory allocation errors**
+   - Ensure code.py uses `bit_depth=6` in MatrixPortal initialization
+   - Verify `displayio.release_displays()` is called before initialization
+   - Check that debug mode is disabled (`debug=False`)
 
 ## Updating an Existing Display
 
@@ -131,28 +130,6 @@ To update an existing display:
 4. Update the lib folder if necessary
 5. Restore your custom configuration
 6. Safely eject and power cycle the display
-
-## Testing Commands
-
-Test the display with these commands:
-
-```bash
-# Test timer mode
-curl "http://172.16.232.6:52341/sigfox?target=wc&text=Test&duration=10"
-
-# Test preset mode
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
-
-# Test music preset mode
-curl -X POST -H "Content-Type: application/json" \
-     -d '{"target":"wc","mode":"preset","preset_id":"music","artist":"Test Artist","song":"Test Song","duration":30}' \
-     http://172.16.232.6:52341/sigfox
-
-# Reset display
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=reset"
-```
-
-Replace `wc` with the appropriate target for your display (wc, bathroom, eva).
 
 ## Display Features
 
@@ -166,4 +143,6 @@ Replace `wc` with the appropriate target for your display (wc, bathroom, eva).
 - Music preset uses two lines:
   - Top line (y=8): Artist name
   - Bottom line (y=20): Song name
-- Both lines support automatic scrolling for long text 
+- Both lines support automatic scrolling for long text
+
+For information on using the displays and testing, see [Display Operation Guide](display_operation.md).

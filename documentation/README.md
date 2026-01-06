@@ -1,44 +1,65 @@
-# Display System Documentation
+# HomeMatrixBoard Documentation
 
 ## Overview
-This system integrates Sigfox webhooks with MQTT messaging to control multiple MatrixPortal M4 displays. The architecture consists of two VMs (webserver and MQTT broker) and multiple display devices. The system features robust MQTT connection handling with automatic reconnection, memory optimization, and efficient error recovery.
-
-## Components
-- **Webserver VM**: Handles incoming webhooks and forwards messages to MQTT broker
-  - Supports Spotify integration for displaying currently playing tracks
-  - RESTful API endpoints for timer and preset displays
-- **MQTT Broker VM**: Manages message distribution to displays with optimized connection settings
-- **MatrixPortal M4 Displays**: Show countdown timers and presets with reliable MQTT connectivity
-  - Automatic reconnection with exponential backoff
-  - Memory-efficient connection handling
-  - Robust subscription recovery
-  - Two-line text display with automatic scrolling
-  - Music preset with artist/song display
-
-## Documentation Structure
-- **Technical Documentation**
-  - Architecture details
-  - MQTT broker setup and configuration
-  - Webserver setup and configuration
-  - Security considerations
-  - Connection management and optimization
-
-- **User Guides**
-  - Display operation instructions
-  - Webhook integration guide
-  - Spotify integration guide
-  - Troubleshooting and maintenance
+HomeMatrixBoard is a distributed IoT display system that shows countdown timers and preset displays on LED matrix displays. The system integrates Sigfox webhooks with MQTT messaging to control multiple MatrixPortal M4 displays.
 
 ## Quick Start
-1. Send webhook to: `http://172.16.232.6:52341/sigfox?target=<display_name>&text=<text>&duration=<seconds>`
-2. Supported display names: wc, bathroom, eva
-3. Duration in seconds (e.g., 60 for one minute)
-4. Monitor display's serial output for connection status
+
+### Send a Timer
+```bash
+curl "http://172.16.232.6:52341/sigfox?target=wc&text=Shower&duration=60"
+```
+
+### Send a Preset
+```bash
+curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
+```
+
+## Documentation Structure
+
+### Setup Guides
+- **[Display Setup](display_setup.md)** - How to set up and configure MatrixPortal M4 displays
+- **[MQTT Broker Setup](mqtt_broker_setup.md)** - How to install and configure the MQTT broker
+- **[Webserver Setup](webserver_setup.md)** - How to set up the Flask webhook server
+- **[Spotify Integration](spotify_integration.md)** - Optional Spotify integration setup
+- **[Spotify Setup Checklist](SPOTIFY_SETUP_CHECKLIST.md)** - Step-by-step Spotify setup checklist
+
+### User Guides
+- **[Display Operation](display_operation.md)** - How to use the displays, message formats, and testing
+- **[Webhook Integration](webhook_integration.md)** - API reference for webhook endpoints
+- **[Architecture](architecture.md)** - System architecture and message flow
+
+### Reference
+- **[CHANGELOG](CHANGELOG.md)** - Version history and changes
+- **[Security](security.md)** - Security considerations and best practices
+
+## System Components
+
+1. **Webserver (172.16.232.6)**
+   - Flask application handling webhooks
+   - Optional Spotify integration
+   - Nginx reverse proxy
+
+2. **MQTT Broker (172.16.234.55)**
+   - Mosquitto MQTT broker
+   - Message routing and authentication
+
+3. **MatrixPortal M4 Displays**
+   - WC, Bathroom, and Eva displays
+   - WiFi-enabled with MQTT clients
+   - Support timer and preset modes
 
 ## Features
+
 - **Timer Mode**: Countdown timers with animations
 - **Preset Mode**: Pre-configured displays (On Air, Score, Breaking, Music, Reset)
 - **Music Preset**: Two-line display showing artist and song with automatic scrolling
-- **Spotify Integration**: Display currently playing tracks from Spotify (optional)
+- **Spotify Integration**: Display currently playing tracks (optional)
 - **Text Scrolling**: Long text automatically scrolls horizontally
-- **Two-Line Display**: Music preset uses separate lines for artist and song 
+- **Automatic Reconnection**: Robust MQTT connection handling
+
+## Getting Help
+
+- Check the troubleshooting sections in each guide
+- Review the [Architecture](architecture.md) document for system overview
+- See [Display Operation](display_operation.md) for testing and usage examples

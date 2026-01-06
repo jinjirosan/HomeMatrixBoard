@@ -1,63 +1,61 @@
 # MatrixPortal M4 Display Operation Guide
 
-## Overview
-The system uses MatrixPortal M4 LED matrix displays to show countdown timers. Each display subscribes to a specific MQTT topic and shows countdown timers based on received messages.
+This guide explains how to use the MatrixPortal M4 displays, including message formats, display modes, and testing procedures.
 
-## Hardware Requirements
-- Adafruit MatrixPortal M4
-- 64x32 RGB LED Matrix
-- 5V 4A Power Supply
-- USB-C cable for programming
+## Overview
+The system uses MatrixPortal M4 LED matrix displays to show countdown timers and preset displays. Each display subscribes to a specific MQTT topic and shows content based on received messages.
 
 ## Display Features
-1. Countdown Timer
-   - Shows time remaining in MM:SS format
-   - Border animation during countdown
-   - Final countdown animation (last 10 seconds)
-   - "DONE" message when complete
 
-2. Preset Displays
-   - "On Air" - Black background with red text
-   - "Score" - Green background with yellow text
-   - "Breaking" - Blue background with white text
-   - "Music" - Purple background with white text (two-line display)
-   - Configurable display duration
-   - Custom border animations per preset
-   - Automatic text scrolling for long text
+### 1. Countdown Timer
+- Shows time remaining in MM:SS format
+- Border animation during countdown
+- Final countdown animation (last 10 seconds)
+- "DONE" message when complete
+- Automatic transition to stopwatch mode
 
-3. Status Indicators
-   - WiFi connection status
-   - MQTT connection status
-   - Error messages
+### 2. Preset Displays
+- **On Air**: Black background with red text and radio symbol
+- **Score**: Green background with yellow text
+- **Breaking**: Blue background with white text and blinking border
+- **Music**: Purple background with two-line display (artist/song)
+- **Reset**: Clears display to initial state
+- Configurable display duration
+- Custom border animations per preset
+- Automatic text scrolling for long text
 
-## Message Format
-Messages can be formatted in two ways:
+### 3. Status Indicators
+- WiFi connection status
+- MQTT connection status
+- Error messages (via serial console)
 
-1. Timer Mode (Original Format):
+## Message Formats
+
+### Timer Mode (Default)
 ```json
 {
     "name": "WC Tijd",
     "duration": 15
 }
 ```
-- `name`: Display title (automatically centered)
+- `name`: Display title (automatically centered, scrolls if >10 chars)
 - `duration`: Countdown time in seconds
 
-2. Preset Mode (New Format):
+### Preset Mode
 ```json
 {
     "mode": "preset",
     "preset_id": "on_air",
     "name": "Studio 1",    // Optional
-    "duration": 3600      // Optional, auto-clear after duration
+    "duration": 3600       // Optional, auto-clear after duration
 }
 ```
-- `mode`: Set to "preset" for preset displays
+- `mode`: Must be set to "preset"
 - `preset_id`: One of: "on_air", "score", "breaking", "music", "reset"
 - `name`: Optional custom text override (not used for music preset)
 - `duration`: Optional display duration in seconds
 
-3. Music Preset Mode (Special Format):
+### Music Preset Mode (Special Format)
 ```json
 {
     "mode": "preset",
@@ -139,29 +137,31 @@ Each display subscribes to a specific topic:
 - Solid border
 - Returns to ready state after 10 seconds
 
+### 5. Stopwatch State
+- Shows elapsed time after countdown completes
+- Blinking border
+- Continues until new message received
+
 ## MQTT Connection Management
 
 ### Connection Features
 - Automatic reconnection with exponential backoff
 - Memory-efficient connection handling
 - Robust subscription recovery
-- Optimized timeout configuration:
-  - Socket timeout: 0.1s
-  - Receive timeout: 0.2s
-  - MQTT loop timeout: 0.1s
+- Optimized timeout configuration
 
 ### Connection States
-1. Initial Connection
+1. **Initial Connection**
    - Attempts connection to MQTT broker
    - Subscribes to display-specific topic
    - Reports connection status
 
-2. Connection Monitoring
+2. **Connection Monitoring**
    - Regular connection checks
    - Automatic reconnection on failure
    - Resubscription after reconnection
 
-3. Error Recovery
+3. **Error Recovery**
    - Exponential backoff for retry attempts
    - Base delay: 3 seconds
    - Maximum delay: 300 seconds (5 minutes)
@@ -185,56 +185,51 @@ mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
 ```
 
 ### 2. Webhook Testing
-```bash
-# Test timer via webserver
-curl "http://172.16.232.6/sigfox?name=wc&duration=60"
-
-# Test preset via webserver
-curl "http://172.16.232.6/sigfox?mode=preset&preset_id=on_air&name=wc"
-
-# Test music preset via webserver (requires artist and song)
-curl -X POST -H "Content-Type: application/json" \
-     -d '{"target":"wc","mode":"preset","preset_id":"music","artist":"The Beatles","song":"Hey Jude","duration":30}' \
-     http://172.16.232.6:52341/sigfox
-```
-
+See [Webhook Integration Guide](webhook_integration.md) for webhook testing examples.
 
 ## Troubleshooting
 
 ### 1. Display Not Responding
 1. Check power connection
-2. Verify WiFi connection
-3. Check MQTT subscription
+2. Verify WiFi connection (check serial console)
+3. Check MQTT subscription (check serial console)
 4. Monitor serial output for connection status
 5. Reset display if needed
 
 ### 2. Display Shows Error
 1. Check error message in serial output
 2. Verify MQTT credentials
-3. Check message format
+3. Check message format (must be valid JSON)
 4. Verify network connectivity
 5. Monitor connection retry attempts
 
 ### 3. Common Issues
-1. WiFi Connection
-   - Check WiFi credentials in secrets.py
-   - Verify WiFi signal strength
-   - Check network configuration
-   - Monitor reconnection attempts
 
-2. MQTT Connection
-   - Verify broker IP address
-   - Check MQTT credentials
-   - Confirm topic subscription
-   - Monitor connection retry intervals
-   - Check serial output for connection status
+**WiFi Connection**
+- Check WiFi credentials in secrets.py
+- Verify WiFi signal strength
+- Check network configuration
+- Monitor reconnection attempts in serial console
 
-3. Display Issues
-   - Check power supply (needs 5V 4A)
-   - Verify matrix connections
-   - Check for loose cables
-   - Monitor memory usage
-   - Check for stack exhaustion errors
+**MQTT Connection**
+- Verify broker IP address
+- Check MQTT credentials match broker configuration
+- Confirm topic subscription
+- Monitor connection retry intervals
+- Check serial output for connection status
+
+**Display Issues**
+- Check power supply (needs 5V 4A)
+- Verify matrix connections
+- Check for loose cables
+- Monitor memory usage (check for allocation errors)
+- Check for stack exhaustion errors
+
+**Message Not Displaying**
+- Verify message format is valid JSON
+- Check topic matches display subscription
+- Verify display is connected to MQTT
+- Check serial console for error messages
 
 ## Maintenance
 

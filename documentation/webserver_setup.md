@@ -169,7 +169,7 @@ sudo vim /etc/nginx/sites-available/sigfox-bridge
 Add the following configuration:
 ```nginx
 server {
-    listen 80;
+    listen 52341;
     server_name 172.16.232.6;
 
     location / {
@@ -179,6 +179,8 @@ server {
     }
 }
 ```
+
+**Note:** The port 52341 is used for production. If you prefer port 80, change `listen 52341;` to `listen 80;` and update all URLs accordingly.
 
 ### 6. Enable and Start Services
 ```bash
@@ -196,29 +198,31 @@ sudo systemctl restart nginx
 Test the webhook endpoint:
 ```bash
 # Test timer mode (GET)
-curl "http://172.16.232.6/sigfox?target=wc&text=Shower&duration=60"
+curl "http://172.16.232.6:52341/sigfox?target=wc&text=Shower&duration=60"
 
 # Test preset mode (GET)
-curl "http://172.16.232.6/sigfox?target=wc&mode=preset&preset_id=on_air"
+curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
 
 # Test preset with custom name and duration (GET)
-curl "http://172.16.232.6/sigfox?target=wc&mode=preset&preset_id=on_air&name=Studio%201&duration=3600"
+curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air&name=Studio%201&duration=3600"
 
 # Test timer mode (POST)
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","text":"Shower","duration":60}' \
-     http://172.16.232.6/sigfox
+     http://172.16.232.6:52341/sigfox
 
 # Test preset mode (POST)
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","mode":"preset","preset_id":"on_air"}' \
-     http://172.16.232.6/sigfox
+     http://172.16.232.6:52341/sigfox
 
 # Test preset with custom name and duration (POST)
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","mode":"preset","preset_id":"on_air","name":"Studio 1","duration":3600}' \
-     http://172.16.232.6/sigfox
+     http://172.16.232.6:52341/sigfox
 ```
+
+For more detailed API documentation and examples, see [Webhook Integration Guide](webhook_integration.md).
 
 ## Troubleshooting
 1. Check service status:
@@ -242,8 +246,16 @@ curl -X POST -H "Content-Type: application/json" \
    mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P system1234 \
        -t "home/displays/wc" -m '{"name":"Shower","duration":15}'
    ```
+   For MQTT broker configuration details, see [MQTT Broker Setup](mqtt_broker_setup.md).
 
 4. After making changes to app.py:
    ```bash
    sudo systemctl restart sigfox-bridge
    ```
+
+## Related Documentation
+
+- [Webhook Integration](webhook_integration.md) - API reference for webhook endpoints
+- [MQTT Broker Setup](mqtt_broker_setup.md) - MQTT broker configuration
+- [Spotify Integration](spotify_integration.md) - Optional Spotify integration setup
+- [Architecture](architecture.md) - System architecture overview
