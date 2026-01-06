@@ -146,3 +146,7 @@ To update an existing display:
 - Both lines support automatic scrolling for long text
 
 For information on using the displays and testing, see [Display Operation Guide](display_operation.md).
+
+## Adding Additional Displays
+
+If you need to add more displays to your system, see [Adding a New Display Guide](adding_a_new_display.md) for step-by-step instructions on configuring the MQTT broker, webserver, and new display hardware.

@@ -19,6 +19,7 @@ curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
 
 ### Setup Guides
 - **[Display Setup](display_setup.md)** - How to set up and configure MatrixPortal M4 displays
+- **[Adding a New Display](adding_a_new_display.md)** - Step-by-step guide for adding additional displays
 - **[MQTT Broker Setup](mqtt_broker_setup.md)** - How to install and configure the MQTT broker
 - **[Webserver Setup](webserver_setup.md)** - How to set up the Flask webhook server
 - **[Spotify Integration](spotify_integration.md)** - Optional Spotify integration setup
