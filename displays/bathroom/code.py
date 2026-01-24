@@ -60,6 +60,10 @@ class DisplayText:
         self.text_group = displayio.Group()
         self.last_lengths = {}  # Cache for text lengths
         self.last_positions = {}  # Cache for calculated positions
+        # Manual scrolling state
+        self.scrolling_labels = {}  # Track which labels are scrolling
+        self.scroll_speed = 0.05  # Seconds per pixel movement
+        self.scroll_pause = 1.0  # Pause at start/end before scrolling
         self.setup_text()
         self.matrixportal.display.root_group.append(self.text_group)
         
@@ -112,7 +116,7 @@ class DisplayText:
         label.text = text
     
     def update_text_with_scrolling(self, text, label, y_position, max_chars=10):
-        """Update text with scrolling if it's too long"""
+        """Update text with manual scrolling if it's too long"""
         text_width = len(text) * 6
         max_width = max_chars * 6
         
@@ -121,26 +125,59 @@ class DisplayText:
             self.text_group.remove(label._scrolling_label)
             delattr(label, '_scrolling_label')
         
+        # Stop scrolling for this label if it was scrolling
+        if label in self.scrolling_labels:
+            del self.scrolling_labels[label]
+        
         if text_width > max_width:
-            # Use scrolling label for long text
-            scrolling_label = ScrollingLabel(
-                terminalio.FONT,
-                text=text,
-                color=label.color,
-                max_characters=max_chars,
-                animate_time=0.3,
-                x=0,
-                y=y_position
-            )
-            label._scrolling_label = scrolling_label
-            # Hide the regular label and show scrolling one
-            label.text = ""
-            label.x = -1000  # Move off screen
-            if scrolling_label not in self.text_group:
-                self.text_group.append(scrolling_label)
+            # Use manual scrolling for long text
+            # Start text so right edge is at right edge of display (text will be partially visible)
+            # This ensures text is visible immediately, then scrolls left
+            label.text = text
+            # Calculate start position: right edge of text at right edge of display
+            # label.x is the left edge, so: x = DISPLAY_WIDTH - text_width
+            start_x = DISPLAY_WIDTH - text_width
+            label.x = start_x
+            label.y = y_position
+            
+            # Track scrolling state
+            self.scrolling_labels[label] = {
+                "text": text,
+                "width": text_width,
+                "start_x": start_x,  # Start position (right edge of text at right edge of display)
+                "end_x": -text_width,  # End position (off-screen to the left)
+                "last_update": time.monotonic(),
+                "paused": True,  # Pause briefly at start so user can see the end of the text
+                "pause_start": time.monotonic()
+            }
         else:
-            # Use regular label for short text
+            # Use regular label for short text (centered)
             self.update_text(text, label, y_position)
+    
+    def update_scrolling(self, current_time):
+        """Update manual scrolling animation"""
+        for label, scroll_info in list(self.scrolling_labels.items()):
+            # Handle pause at start
+            if scroll_info["paused"]:
+                if (current_time - scroll_info["pause_start"]) < self.scroll_pause:
+                    continue  # Still pausing
+                else:
+                    scroll_info["paused"] = False
+                    scroll_info["last_update"] = current_time
+            
+            # Check if we need to update position
+            time_since_update = current_time - scroll_info["last_update"]
+            if time_since_update >= self.scroll_speed:
+                # Move label left by 1 pixel
+                label.x -= 1
+                scroll_info["last_update"] = current_time
+                
+                # Check if we've scrolled off the left edge
+                if label.x <= scroll_info["end_x"]:
+                    # Reset to start position and pause
+                    label.x = scroll_info["start_x"]
+                    scroll_info["paused"] = True
+                    scroll_info["pause_start"] = current_time
 
 class BorderManager:
     def __init__(self, matrixportal):
@@ -626,8 +663,16 @@ class CountdownDisplay:
                             display_artist = artist if artist else "Unknown Artist"
                             display_song = song if song else "Unknown Song"
                             
-                            self.text_manager.title_label.color = preset_config["text_color"]
-                            self.text_manager.timer_label.color = preset_config["text_color"]
+                            # Set purple background
+                            self.matrixportal.set_background(preset_config["background"])
+                            
+                            # Set text color to WHITE
+                            self.text_manager.title_label.color = WHITE
+                            self.text_manager.timer_label.color = WHITE
+                            
+                            # Set label backgrounds to match purple background
+                            self.text_manager.title_label.background_color = preset_config["background"]
+                            self.text_manager.timer_label.background_color = preset_config["background"]
                             
                             # Use scrolling for long text (max 10 chars per line for 64px width)
                             self.text_manager.update_text_with_scrolling(
@@ -812,6 +857,9 @@ class CountdownDisplay:
             # Update border animation independently (only if not in DONE state)
             if not (state and state["type"] == "done"):
                 self.border_manager.update_animation(current_time)
+            
+            # Update manual text scrolling (always update, regardless of state)
+            self.text_manager.update_scrolling(current_time)
                 
         except Exception as e:
             print("Error in update:", str(e))

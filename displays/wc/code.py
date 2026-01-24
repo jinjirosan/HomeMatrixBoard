@@ -54,6 +54,11 @@ class DisplayText:
         self.text_group = displayio.Group()
         self.last_lengths = {}  # Cache for text lengths
         self.last_positions = {}  # Cache for calculated positions
+        # Manual scrolling state
+        # Use label id() as key since Label objects are not hashable
+        self.scrolling_labels = {}  # Track which labels are scrolling: {label_id: {"label": Label, "text": str, "width": int, "start_x": int, "last_update": float}}
+        self.scroll_speed = 0.05  # Seconds per pixel movement
+        self.scroll_pause = 1.0  # Pause at start/end before scrolling
         self.setup_text()
         
     def setup_text(self):
@@ -113,7 +118,7 @@ class DisplayText:
         label.text = text
     
     def update_text_with_scrolling(self, text, label, y_position, max_chars=10):
-        """Update text with scrolling if it's too long"""
+        """Update text with manual scrolling if it's too long"""
         text_width = len(text) * 6
         max_width = max_chars * 6
         
@@ -122,26 +127,68 @@ class DisplayText:
             self.text_group.remove(label._scrolling_label)
             delattr(label, '_scrolling_label')
         
+        # Stop scrolling for this label if it was scrolling (use id() as key)
+        label_id = id(label)
+        if label_id in self.scrolling_labels:
+            del self.scrolling_labels[label_id]
+        
         if text_width > max_width:
-            # Use scrolling label for long text
-            scrolling_label = ScrollingLabel(
-                terminalio.FONT,
-                text=text,
-                color=label.color,
-                max_characters=max_chars,
-                animate_time=0.3,
-                x=0,
-                y=y_position
-            )
-            label._scrolling_label = scrolling_label
-            # Hide the regular label and show scrolling one
-            label.text = ""
-            label.x = -1000  # Move off screen
-            if scrolling_label not in self.text_group:
-                self.text_group.append(scrolling_label)
+            # Use manual scrolling for long text
+            # Start text so right edge is at right edge of display (text will be partially visible)
+            # This ensures text is visible immediately, then scrolls left
+            label.text = text
+            # Calculate start position: right edge of text at right edge of display
+            # label.x is the left edge, so: x = DISPLAY_WIDTH - text_width
+            start_x = DISPLAY_WIDTH - text_width
+            label.x = start_x
+            label.y = y_position
+            # Debug: Print label properties to verify they're set correctly
+            print(f"Scrolling label set: text='{label.text}', x={label.x}, y={label.y}, color={label.color}, bg={label.background_color}")
+            # Ensure color and background are preserved (they should already be set, but make sure)
+            # label.color and label.background_color should already be set by the caller
+            
+            # Track scrolling state (use label id as key since Label objects aren't hashable)
+            self.scrolling_labels[label_id] = {
+                "label": label,  # Store label reference for updates
+                "text": text,
+                "width": text_width,
+                "start_x": start_x,  # Start position (right edge of text at right edge of display)
+                "end_x": -text_width,  # End position (off-screen to the left)
+                "last_update": time.monotonic(),
+                "paused": True,  # Pause briefly at start so user can see the end of the text
+                "pause_start": time.monotonic()
+            }
+            print(f"Manual scrolling started for '{text}' (width={text_width}, start_x={start_x}, end_x={-text_width})")
         else:
-            # Use regular label for short text
+            # Use regular label for short text (centered)
             self.update_text(text, label, y_position)
+    
+    def update_scrolling(self, current_time):
+        """Update manual scrolling animation"""
+        for label_id, scroll_info in list(self.scrolling_labels.items()):
+            label = scroll_info["label"]  # Get label reference from stored info
+            
+            # Handle pause at start
+            if scroll_info["paused"]:
+                if (current_time - scroll_info["pause_start"]) < self.scroll_pause:
+                    continue  # Still pausing
+                else:
+                    scroll_info["paused"] = False
+                    scroll_info["last_update"] = current_time
+            
+            # Check if we need to update position
+            time_since_update = current_time - scroll_info["last_update"]
+            if time_since_update >= self.scroll_speed:
+                # Move label left by 1 pixel
+                label.x -= 1
+                scroll_info["last_update"] = current_time
+                
+                # Check if we've scrolled off the left edge
+                if label.x <= scroll_info["end_x"]:
+                    # Reset to start position and pause
+                    label.x = scroll_info["start_x"]
+                    scroll_info["paused"] = True
+                    scroll_info["pause_start"] = current_time
 
 class BorderManager:
     def __init__(self, matrixportal):
@@ -485,6 +532,10 @@ class CountdownDisplay:
         self.connection_quality = 100  # Track connection quality (percentage)
         self.message_counter = 0  # Track total messages
         self.failed_message_counter = 0  # Track failed messages
+        
+        # Add periodic WiFi validation (check every 2 minutes even if connected)
+        self.last_wifi_validation = 0
+        self.wifi_validation_interval = 120  # Validate WiFi every 2 minutes
 
         print("Initializing display...")
         try:
@@ -494,26 +545,49 @@ class CountdownDisplay:
                 debug=True
             )
             
-            # Wait for initial WiFi connection and report it
+            # Attempt initial WiFi connection with exponential backoff
             print("Connecting to WiFi...")
-            while not self.matrixportal.network.is_connected:
+            init_wifi_retry = 0
+            max_init_retries = 5  # Try 5 times during initialization
+            wifi_connected_during_init = False
+            
+            while not self.matrixportal.network.is_connected and init_wifi_retry < max_init_retries:
                 try:
+                    print(f"WiFi connection attempt {init_wifi_retry + 1}/{max_init_retries}...")
                     self.matrixportal.network.connect()
                     if self.matrixportal.network.is_connected:
-                        print("WiFi connected successfully")
-                        print(f"IP Address: {self.matrixportal.network.ip_address}")
-                        break
+                        ip = self.matrixportal.network.ip_address
+                        if ip:
+                            print("WiFi connected successfully")
+                            print(f"IP Address: {ip}")
+                            wifi_connected_during_init = True
+                            self.last_successful_connection = time.monotonic()
+                            break
+                        else:
+                            print("WiFi connected but no IP address obtained")
                 except Exception as e:
-                    print(f"WiFi connection error: {e}")
-                    time.sleep(1)
+                    error_msg = str(e)
+                    print(f"WiFi connection error: {error_msg}")
+                    print(f"  Exception type: {type(e).__name__}")
+                
+                init_wifi_retry += 1
+                if init_wifi_retry < max_init_retries:
+                    retry_delay = self.get_retry_interval(init_wifi_retry)
+                    print(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
             
-            # Report initial WiFi connection
-            self.report_health_event("wifi_connected", {
-                "ip": self.matrixportal.network.ip_address,
-                "ssid": secrets['ssid'],
-                "reset_cause": str(microcontroller.cpu.reset_reason),
-                "firmware_version": "1.1.0"
-            })
+            if wifi_connected_during_init:
+                # Report initial WiFi connection (will be sent after MQTT connects)
+                self.report_health_event("wifi_connected", {
+                    "ip": self.matrixportal.network.ip_address,
+                    "ssid": secrets['ssid'],
+                    "reset_cause": str(microcontroller.cpu.reset_reason),
+                    "firmware_version": "1.1.0"
+                })
+            else:
+                print(f"WiFi not connected during initialization (tried {max_init_retries} times)")
+                print("Display will continue initializing - WiFi connection will be handled by connection management")
+                print("The connection management system will retry WiFi connection in the main loop")
             
             # Create main display group
             print("Init background")
@@ -571,8 +645,13 @@ class CountdownDisplay:
 
     def report_health_event(self, event_type, data=None):
         """Report health events to MQTT"""
+        # Check WiFi first
+        if not self.matrixportal.network.is_connected:
+            print(f"Cannot publish health event: WiFi not connected (event: {event_type})")
+            return
+            
         if not self.mqtt_client or not self.mqtt_client.is_connected():
-            print(f"Cannot publish health event: {event_type}")
+            print(f"Cannot publish health event: MQTT not connected (event: {event_type})")
             return
             
         try:
@@ -593,13 +672,24 @@ class CountdownDisplay:
                 json.dumps(health_data)
             )
             print(f"Published health event: {event_type}")
+        except OSError as e:
+            error_msg = str(e)
+            print(f"Error publishing health event (OSError): {error_msg} (event: {event_type})")
+            # Don't try to report errors about reporting errors
+            if "Failed to send" in error_msg:
+                print("Network error - skipping error report to avoid loop")
         except Exception as e:
-            print(f"Error publishing health event: {e}")
+            print(f"Error publishing health event (other): {e} (event: {event_type})")
 
     def report_error(self, error_type, details):
         """Report errors to MQTT"""
+        # Check WiFi first - don't try to report errors if WiFi is down
+        if not self.matrixportal.network.is_connected:
+            print(f"Cannot publish error: WiFi not connected (error: {error_type})")
+            return
+            
         if not self.mqtt_client or not self.mqtt_client.is_connected():
-            print(f"Cannot publish error: {error_type}")
+            print(f"Cannot publish error: MQTT not connected (error: {error_type})")
             return
             
         try:
@@ -618,53 +708,179 @@ class CountdownDisplay:
                 f"{secrets['mqtt_topic']}/errors",
                 json.dumps(error_data)
             )
+        except OSError as e:
+            error_msg = str(e)
+            print(f"Error publishing error (OSError): {error_msg} (error_type: {error_type})")
+            # Don't try to report errors about reporting errors - avoid infinite loop
+            if "Failed to send" in error_msg:
+                print("Network error - skipping error report to avoid loop")
         except Exception as e:
-            print(f"Error publishing error: {e}")
+            print(f"Error publishing error (other): {e} (error_type: {error_type})")
 
     def check_wifi_connection(self):
         """Check and maintain WiFi connection with exponential backoff"""
         current_time = time.monotonic()
         
-        # Only check periodically
+        # Periodic proactive validation - check WiFi health even if it reports connected
+        # But be gentle - only force disconnect if we have strong evidence
+        if current_time - self.last_wifi_validation >= self.wifi_validation_interval:
+            self.last_wifi_validation = current_time
+            if self.matrixportal.network.is_connected:
+                # Validate WiFi is actually working by checking IP
+                # But also check MQTT - if MQTT works, WiFi must be working
+                validation_failed = False
+                try:
+                    ip = self.matrixportal.network.ip_address
+                    if ip is None:
+                        # No IP - check if MQTT is working
+                        if self.mqtt_client and self.mqtt_client.is_connected():
+                            print("Periodic WiFi validation: No IP but MQTT connected - WiFi likely OK")
+                        else:
+                            print("Periodic WiFi validation: No IP and MQTT down - suspicious")
+                            validation_failed = True
+                except Exception as e:
+                    error_msg = str(e)
+                    # Exception accessing IP - check MQTT status
+                    if self.mqtt_client and self.mqtt_client.is_connected():
+                        print(f"Periodic WiFi validation: IP check exception but MQTT OK - WiFi likely fine")
+                        print(f"  Exception: {error_msg}")
+                    else:
+                        print(f"Periodic WiFi validation: IP check exception and MQTT down - may need reconnect")
+                        print(f"  Exception: {error_msg}")
+                        validation_failed = True
+                
+                # Only force disconnect if we have strong evidence
+                if validation_failed and (not self.mqtt_client or not self.mqtt_client.is_connected()):
+                    print("Periodic WiFi validation: Strong evidence WiFi is down - forcing reconnection")
+                    self.matrixportal.network.is_connected = False
+        
+        # Only check periodically (reactive checks)
         if current_time - self.last_wifi_check < self.get_retry_interval(self.wifi_retry_count):
             return False
 
         self.last_wifi_check = current_time
         
         try:
-            if not self.matrixportal.network.is_connected:
-                print("WiFi disconnected, attempting to reconnect...")
-                self.report_error("wifi_disconnected", {
-                    "retry_count": self.wifi_retry_count,
-                    "last_success": self.last_successful_connection
-                })
+            # Check WiFi status - but don't trust is_connected flag alone
+            # Instead, verify by checking if we can actually use the connection
+            is_connected_flag = self.matrixportal.network.is_connected
+            wifi_connected = is_connected_flag
+            
+            # Try to get IP address - this is the real test
+            # Note: 0.0.0.0 is NOT a valid IP - it means no IP assigned
+            ip = None
+            ip_check_succeeded = False
+            valid_ip = False
+            try:
+                ip = self.matrixportal.network.ip_address
+                if ip is not None and ip != "0.0.0.0":
+                    valid_ip = True
+                    ip_check_succeeded = True
+                    # If we have a valid IP, WiFi must be working regardless of is_connected flag
+                    if not is_connected_flag:
+                        # Only log this occasionally to avoid spam (every 10th check or so)
+                        if self.wifi_retry_count == 0 and (current_time % 60 < 1):  # Log roughly once per minute
+                            print(f"WiFi is_connected=False but IP={ip} - is_connected flag is stale, WiFi actually working")
+                        wifi_connected = True
+            except Exception as ip_error:
+                # Exception accessing IP - check MQTT as backup indicator
+                error_msg = str(ip_error)
+                if self.mqtt_client and self.mqtt_client.is_connected():
+                    # MQTT works, so WiFi must be working
+                    if self.wifi_retry_count == 0 and (current_time % 60 < 1):  # Log roughly once per minute
+                        print(f"WiFi IP check exception but MQTT connected - WiFi likely OK")
+                        print(f"  Exception: {error_msg}")
+                    wifi_connected = True
+                    ip_check_succeeded = True  # Treat as success if MQTT works
+            
+            # Check MQTT as additional indicator - this is the most reliable test
+            mqtt_connected = self.mqtt_client and self.mqtt_client.is_connected()
+            
+            # If MQTT is connected, WiFi MUST be working (MQTT requires WiFi)
+            # This is the most reliable indicator - trust it over IP address
+            if mqtt_connected:
+                if not wifi_connected or not is_connected_flag:
+                    # Only log occasionally to avoid spam
+                    if self.wifi_retry_count == 0 and (current_time % 60 < 1):  # Log roughly once per minute
+                        print(f"MQTT connected but WiFi reports disconnected - is_connected flag is wrong, WiFi actually working")
+                wifi_connected = True
+                ip_check_succeeded = True  # MQTT working means WiFi is working
+            
+            # Only consider WiFi disconnected if:
+            # 1. is_connected flag is False AND
+            # 2. We don't have a valid IP address (or IP is 0.0.0.0) AND
+            # 3. MQTT is not connected
+            # This prevents false disconnects when is_connected flag is stale
+            if not is_connected_flag and not ip_check_succeeded and not mqtt_connected:
+                # Strong evidence WiFi is actually down
+                wifi_connected = False
+            elif not wifi_connected:
+                # is_connected is False but we have evidence WiFi works - trust the evidence
+                wifi_connected = True
+            
+            if not wifi_connected:
+                disconnect_duration = current_time - self.last_successful_connection if self.last_successful_connection > 0 else 0
+                print(f"\n=== WiFi Disconnection Detected ===")
+                print(f"Retry count: {self.wifi_retry_count}")
+                print(f"Last successful connection: {disconnect_duration:.1f}s ago")
+                print(f"is_connected flag: {self.matrixportal.network.is_connected}")
+                try:
+                    print(f"IP address check: {self.matrixportal.network.ip_address}")
+                except Exception as e:
+                    print(f"IP address check failed: {e}")
+                print(f"MQTT connected: {self.mqtt_client.is_connected() if self.mqtt_client else False}")
+                print("Attempting to reconnect...")
+                print("================================\n")
                 
-                self.matrixportal.network.connect()
-                if self.matrixportal.network.is_connected:
-                    print("WiFi reconnected successfully")
-                    print(f"IP Address: {self.matrixportal.network.ip_address}")
-                    self.wifi_retry_count = 0
-                    self.last_successful_connection = current_time
-                    self.report_health_event("wifi_connected", {
-                        "ip": self.matrixportal.network.ip_address,
-                        "signal": self.get_wifi_signal_strength()
-                    })
-                    return True
-                else:
+                # Disconnect MQTT if WiFi is down (will reconnect after WiFi is back)
+                if self.mqtt_client and self.mqtt_client.is_connected():
+                    try:
+                        print("Disconnecting MQTT due to WiFi failure...")
+                        self.mqtt_client.disconnect()
+                    except:
+                        pass
+                
+                # Attempt WiFi reconnection
+                try:
+                    self.matrixportal.network.connect()
+                    if self.matrixportal.network.is_connected:
+                        ip = self.matrixportal.network.ip_address
+                        if ip:
+                            print(f"WiFi reconnected successfully")
+                            print(f"  IP Address: {ip}")
+                            reconnect_duration = disconnect_duration
+                            self.wifi_retry_count = 0
+                            self.last_successful_connection = current_time
+                            # Report health event (will be sent after MQTT reconnects)
+                            self.report_health_event("wifi_connected", {
+                                "ip": ip,
+                                "signal": self.get_wifi_signal_strength(),
+                                "reconnect_after": reconnect_duration
+                            })
+                            return True
+                        else:
+                            print("WiFi connected but no IP address obtained")
+                            self.wifi_retry_count += 1
+                    else:
+                        self.wifi_retry_count += 1
+                except Exception as connect_error:
+                    print(f"WiFi connect() raised exception: {connect_error}")
                     self.wifi_retry_count += 1
-                    retry_interval = self.get_retry_interval(self.wifi_retry_count)
-                    print(f"Could not reconnect to WiFi. Retrying in {retry_interval} seconds...")
-                    return False
+                
+                retry_interval = self.get_retry_interval(self.wifi_retry_count)
+                print(f"Could not reconnect to WiFi. Retry count: {self.wifi_retry_count}, retrying in {retry_interval} seconds...")
+                return False
             else:
-                self.wifi_retry_count = 0
+                # WiFi is connected - reset retry count
+                if self.wifi_retry_count > 0:
+                    print(f"WiFi connection restored (was retrying, count was {self.wifi_retry_count})")
+                    self.wifi_retry_count = 0
                 return True
         except Exception as e:
             error_msg = str(e)
             print(f"Error during WiFi connection check: {error_msg}")
-            self.report_error("wifi_error", {
-                "error": error_msg,
-                "retry_count": self.wifi_retry_count
-            })
+            print(f"  Exception type: {type(e).__name__}")
+            # Don't try to report via MQTT if we're having WiFi issues
             self.wifi_retry_count += 1
             retry_interval = self.get_retry_interval(self.wifi_retry_count)
             print(f"Retrying in {retry_interval} seconds...")
@@ -771,9 +987,16 @@ class CountdownDisplay:
 
     def publish_status(self, status):
         """Publish device status with connection check"""
+        # Trust MQTT status as primary indicator - if MQTT is connected, WiFi must be working
         if not self.mqtt_client or not self.mqtt_client.is_connected():
-            print("Cannot publish status: MQTT not connected")
+            # Only log if not in retry state to avoid spam
+            if self.mqtt_retry_count == 0:
+                print(f"Cannot publish status: MQTT not connected (status: {status})")
             return
+        
+        # If MQTT is connected, WiFi must be working (MQTT requires WiFi)
+        # Don't check WiFi is_connected flag - it can be stale
+        # Only check if we can actually get an IP (but don't block if MQTT works)
             
         try:
             status_data = {
@@ -792,8 +1015,21 @@ class CountdownDisplay:
                 json.dumps(status_data)
             )
             print(f"Published status: {status}")
+        except OSError as e:
+            error_msg = str(e)
+            print(f"Error publishing status (OSError): {error_msg}")
+            # If it's a network error, mark WiFi as disconnected and disconnect MQTT
+            if "Failed to send" in error_msg or "Network" in error_msg:
+                print("Network error detected - forcing WiFi and MQTT reconnection")
+                self.matrixportal.network.is_connected = False  # Force recheck
+                if self.mqtt_client:
+                    try:
+                        self.mqtt_client.disconnect()
+                    except:
+                        pass
+            self.connection_quality = max(0, self.connection_quality - 10)
         except Exception as e:
-            print(f"Error publishing status: {e}")
+            print(f"Error publishing status (other): {e}")
             # Reset connection quality on publish failure
             self.connection_quality = max(0, self.connection_quality - 10)
 
@@ -811,10 +1047,18 @@ class CountdownDisplay:
         """Monitor connection quality"""
         current_time = time.monotonic()
 
-        # Send heartbeat periodically
+        # Send heartbeat periodically - trust MQTT status as the primary indicator
         if current_time - self.last_heartbeat >= self.heartbeat_interval:
             self.last_heartbeat = current_time
-            self.publish_status("online")
+            # If MQTT is connected, WiFi must be working (MQTT requires WiFi)
+            # Trust MQTT status over WiFi is_connected flag
+            mqtt_connected = self.mqtt_client and self.mqtt_client.is_connected()
+            if mqtt_connected:
+                self.publish_status("online")
+            else:
+                # Only log if we're not in a retry state (to avoid spam)
+                if self.wifi_retry_count == 0 and self.mqtt_retry_count == 0:
+                    print(f"Skipping heartbeat - WiFi: {self.matrixportal.network.is_connected}, MQTT: False")
 
         # Update connection quality based on message success rate
         self.connection_quality = self.get_message_success_rate()
@@ -928,22 +1172,39 @@ class CountdownDisplay:
                             display_artist = artist if artist else "Unknown Artist"
                             display_song = song if song else "Unknown Song"
                             
-                            self.text_manager.title_label.color = preset_config["text_color"]
-                            self.text_manager.timer_label.color = preset_config["text_color"]
+                            print(f"Music preset: artist='{display_artist}' ({len(display_artist)} chars), song='{display_song}' ({len(display_song)} chars)")
+                            
+                            # Set purple background
+                            self.set_background(preset_config["background"])
+                            
+                            # Set text color to WHITE
+                            self.text_manager.title_label.color = WHITE
+                            self.text_manager.timer_label.color = WHITE
+                            
+                            # Set label backgrounds to match purple background
+                            self.text_manager.title_label.background_color = preset_config["background"]
+                            self.text_manager.timer_label.background_color = preset_config["background"]
+                            
+                            print(f"Label colors set: title={self.text_manager.title_label.color}, timer={self.text_manager.timer_label.color}")
+                            print(f"Label backgrounds set: title={self.text_manager.title_label.background_color}, timer={self.text_manager.timer_label.background_color}")
                             
                             # Use scrolling for long text (max 10 chars per line for 64px width)
+                            print("Updating artist text...")
                             self.text_manager.update_text_with_scrolling(
                                 display_artist, 
                                 self.text_manager.title_label, 
                                 8, 
                                 max_chars=10
                             )
+                            print("Updating song text...")
                             self.text_manager.update_text_with_scrolling(
                                 display_song, 
                                 self.text_manager.timer_label, 
                                 20, 
                                 max_chars=10
                             )
+                            
+                            print(f"After update: title_label.text='{self.text_manager.title_label.text}', timer_label.text='{self.text_manager.timer_label.text}'")
                         else:
                             # Regular preset handling
                             display_text = name if name else preset_config["text"]
@@ -994,31 +1255,43 @@ class CountdownDisplay:
                 return  # Don't proceed with MQTT operations if connection is down
 
         # Process MQTT messages with improved error handling
-        if self.mqtt_client and self.mqtt_client.is_connected():
+        # Only try MQTT operations if WiFi is connected
+        if self.matrixportal.network.is_connected and self.mqtt_client and self.mqtt_client.is_connected():
             try:
                 self.mqtt_client.loop(timeout=1.0)  # Match socket timeout
             except OSError as e:
-                if "Failed to send" in str(e):
+                error_str = str(e)
+                if "Failed to send" in error_str or "Network" in error_str:
                     # Enhanced logging for socket failures
                     print("\n=== Socket Send Failure Detected ===")
                     print(f"Error details: {e}")
-                    print(f"Current WiFi status: {'Connected' if self.matrixportal.network.is_connected else 'Disconnected'}")
-                    print(f"Current MQTT status: {'Connected' if self.mqtt_client.is_connected() else 'Disconnected'}")
+                    print(f"Error type: {type(e).__name__}")
+                    print(f"Current WiFi status: {self.matrixportal.network.is_connected}")
+                    try:
+                        print(f"WiFi IP: {self.matrixportal.network.ip_address}")
+                    except:
+                        print("WiFi IP: Unable to get IP")
+                    print(f"Current MQTT status: {self.mqtt_client.is_connected() if self.mqtt_client else False}")
                     print(f"Time since last successful connection: {time.monotonic() - self.last_successful_connection:.2f}s")
                     print(f"WiFi retry count: {self.wifi_retry_count}")
                     print(f"MQTT retry count: {self.mqtt_retry_count}")
                     print("Triggering reconnection sequence...")
                     print("================================\n")
                     
-                    # Socket send failure - trigger reconnection
+                    # Socket send failure - mark WiFi as disconnected and disconnect MQTT
+                    self.matrixportal.network.is_connected = False  # Force WiFi recheck
                     self.mqtt_retry_count += 1
                     try:
                         self.mqtt_client.disconnect()
                         print("MQTT client disconnected cleanly")
                     except Exception as disc_error:
                         print(f"Error during disconnect: {disc_error}")
-                elif "pystack" not in str(e):  # Only log non-pystack errors
+                elif "pystack" not in error_str:  # Only log non-pystack errors
                     print(f"Error in MQTT loop: {e}")
+            except Exception as e:
+                error_str = str(e)
+                if "pystack" not in error_str:
+                    print(f"Unexpected error in MQTT loop: {e} (type: {type(e).__name__})")
 
         # Update display state regardless of network status
         try:
@@ -1119,6 +1392,9 @@ class CountdownDisplay:
             # Update border animation independently (only if not in DONE state)
             if not (state and state["type"] == "done"):
                 self.border_manager.update_animation(current_time)
+            
+            # Update manual text scrolling (always update, regardless of state)
+            self.text_manager.update_scrolling(current_time)
                 
         except Exception as e:
             print(f"Error in display update: {e}")
@@ -1163,6 +1439,12 @@ class CountdownDisplay:
     def setup_mqtt(self):
         """Set up MQTT connection with proper error handling"""
         try:
+            # Check WiFi connection first
+            if not self.matrixportal.network.is_connected:
+                print("Cannot setup MQTT - WiFi not connected")
+                print("MQTT setup will be retried when WiFi connects")
+                return False
+            
             print("Connecting to MQTT broker...")
             
             # Create socket pool with buffer management

@@ -83,6 +83,8 @@ def handle_webhook():
             duration = request.args.get('duration', '')
             mode = request.args.get('mode', 'timer')  # Optional: for preset mode
             preset_id = request.args.get('preset_id', '')  # Optional: for preset mode
+            artist = request.args.get('artist', '')  # Optional: for music preset
+            song = request.args.get('song', '')      # Optional: for music preset
         else:
             data = request.get_json(silent=True) or {}
             target = data.get('target', '')
@@ -90,6 +92,8 @@ def handle_webhook():
             duration = data.get('duration', '')
             mode = data.get('mode', 'timer')
             preset_id = data.get('preset_id', '')
+            artist = data.get('artist', '')  # Extract artist field for music preset
+            song = data.get('song', '')      # Extract song field for music preset
 
         # For backward compatibility, if no mode specified or timer mode
         if mode != 'preset':
@@ -109,8 +113,13 @@ def handle_webhook():
                 "mode": "preset",
                 "preset_id": preset_id,
                 "name": text if text else "",  # Optional text override
-                "duration": int(duration) if duration else None  # Optional duration
+                "duration": int(duration) if duration else None,  # Optional duration
             }
+            # Add artist and song fields if provided (for music preset)
+            if artist:
+                message_data["artist"] = artist
+            if song:
+                message_data["song"] = song
 
         # Map display targets to MQTT topics
         topic_mapping = {
