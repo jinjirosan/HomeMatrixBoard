@@ -1,0 +1,9 @@
+# Python Requirements for MQTT to Splunk Forwarder
+# Install with: pip3 install -r requirements.txt
+
+# MQTT client library
+paho-mqtt>=1.6.1
+
+# HTTP client for Splunk HEC
+requests>=2.31.0
+

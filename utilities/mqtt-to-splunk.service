@@ -1,0 +1,39 @@
+[Unit]
+Description=MQTT to Splunk Forwarder for Utilities Monitoring
+Documentation=https://github.com/jinjirosan/HomeMatrixBoard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USER
+Group=YOUR_GROUP
+WorkingDirectory=/path/to/HomeMatrixBoard/utilities
+
+# IMPORTANT: Use system Python 3, NOT Splunk's internal Python 2.7
+# Explicitly specify /usr/bin/python3 to avoid Splunk's Python
+ExecStart=/usr/bin/python3 /path/to/HomeMatrixBoard/utilities/mqtt_to_splunk.py
+
+# Ensure system Python environment is used
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+
+# Restart policy
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mqtt-to-splunk
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/path/to/HomeMatrixBoard/utilities
+
+[Install]
+WantedBy=multi-user.target
+
