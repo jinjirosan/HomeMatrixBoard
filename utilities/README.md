@@ -366,9 +366,9 @@ sudo systemctl status mqtt-to-splunk
 - [SPLUNK_HOTWATER_DASHBOARD.md](SPLUNK_HOTWATER_DASHBOARD.md) - Hot water monitoring queries and insights
 - [SPLUNK_HEATING_DASHBOARD.md](SPLUNK_HEATING_DASHBOARD.md) - Heating system monitoring queries and insights
 - [utilities_overview_dashboard.xml](utilities_overview_dashboard.xml) - **Overview dashboard XML** (all 4 utilities, with drill-downs)
-- [coldwater_dashboard.xml](coldwater_dashboard.xml) - **Cold water dashboard XML** (detailed monitoring)
-- [hotwater_dashboard.xml](hotwater_dashboard.xml) - **Hot water dashboard XML** (detailed monitoring)
-- [heating_dashboard.xml](heating_dashboard.xml) - **Heating dashboard XML** (detailed monitoring)
+- [utilities_coldwater_dashboard.xml](utilities_coldwater_dashboard.xml) - **Cold water dashboard XML** (detailed monitoring)
+- [utilities_hotwater_dashboard.xml](utilities_hotwater_dashboard.xml) - **Hot water dashboard XML** (detailed monitoring)
+- [utilities_heating_dashboard.xml](utilities_heating_dashboard.xml) - **Heating dashboard XML** (detailed monitoring)
 - [OVERVIEW_DASHBOARD_INSTALLATION.md](OVERVIEW_DASHBOARD_INSTALLATION.md) - Overview dashboard setup guide
 - [MDGI_APP_INTEGRATION.md](MDGI_APP_INTEGRATION.md) - **Integration guide for MDGi Splunk app** (navigation menu, drill-downs)
 - [mdgi_navigation_default.xml](mdgi_navigation_default.xml) - MDGi app navigation menu with Utilities collection

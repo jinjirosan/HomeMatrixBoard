@@ -44,9 +44,9 @@ Overview Dashboard
 - Admin/power user permissions in Splunk
 - All 4 dashboard XML files ready:
   - `utilities_overview_dashboard.xml`
-  - `heating_dashboard.xml`
-  - `hotwater_dashboard.xml`
-  - `coldwater_dashboard.xml`
+  - `utilities_heating_dashboard.xml`
+  - `utilities_hotwater_dashboard.xml`
+  - `utilities_coldwater_dashboard.xml`
 
 ---
 
@@ -62,9 +62,9 @@ cd /opt/splunk/etc/deployment-apps/MDGi/local/data/ui/views/
 
 # Copy all 4 dashboard XML files
 sudo cp /path/to/utilities_overview_dashboard.xml .
-sudo cp /path/to/heating_dashboard.xml .
-sudo cp /path/to/hotwater_dashboard.xml .
-sudo cp /path/to/coldwater_dashboard.xml .
+sudo cp /path/to/utilities_heating_dashboard.xml .
+sudo cp /path/to/utilities_hotwater_dashboard.xml .
+sudo cp /path/to/utilities_coldwater_dashboard.xml .
 
 # Set ownership
 sudo chown -R splunk:splunk /opt/splunk/etc/deployment-apps/MDGi/
@@ -84,9 +84,9 @@ sudo mkdir -p /opt/splunk/etc/apps/MDGi/local/data/ui/views/
 
 # Copy all 4 dashboard XML files
 sudo cp /path/to/utilities_overview_dashboard.xml .
-sudo cp /path/to/heating_dashboard.xml .
-sudo cp /path/to/hotwater_dashboard.xml .
-sudo cp /path/to/coldwater_dashboard.xml .
+sudo cp /path/to/utilities_heating_dashboard.xml .
+sudo cp /path/to/utilities_hotwater_dashboard.xml .
+sudo cp /path/to/utilities_coldwater_dashboard.xml .
 
 # Set ownership
 sudo chown -R splunk:splunk /opt/splunk/etc/apps/MDGi/
@@ -131,9 +131,9 @@ sudo nano default.xml
   <!-- NEW: Utilities Monitoring -->
   <collection label="Utilities">
     <view name="utilities_overview_dashboard" />
-    <view name="heating_dashboard" />
-    <view name="hotwater_dashboard" />
-    <view name="coldwater_dashboard" />
+    <view name="utilities_heating_dashboard" />
+    <view name="utilities_hotwater_dashboard" />
+    <view name="utilities_coldwater_dashboard" />
   </collection>
   
   <!-- Existing collections below -->
@@ -174,9 +174,9 @@ ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/*.xml
 
 **Expected output:**
 ```
--rw-r--r-- 1 splunk splunk 51234 Jan 26 10:30 coldwater_dashboard.xml
--rw-r--r-- 1 splunk splunk 58374 Jan 26 10:30 heating_dashboard.xml
--rw-r--r-- 1 splunk splunk 54829 Jan 26 10:30 hotwater_dashboard.xml
+-rw-r--r-- 1 splunk splunk 51234 Jan 26 10:30 utilities_coldwater_dashboard.xml
+-rw-r--r-- 1 splunk splunk 58374 Jan 26 10:30 utilities_heating_dashboard.xml
+-rw-r--r-- 1 splunk splunk 54829 Jan 26 10:30 utilities_hotwater_dashboard.xml
 -rw-r--r-- 1 splunk splunk 64238 Jan 26 10:30 utilities_overview_dashboard.xml
 ```
 
@@ -265,9 +265,9 @@ After integration, your dashboards will be accessible at:
 | Dashboard | URL |
 |-----------|-----|
 | **Overview** | `http://splunk:8000/app/MDGi/utilities_overview_dashboard` |
-| **Heating** | `http://splunk:8000/app/MDGi/heating_dashboard` |
-| **Hot Water** | `http://splunk:8000/app/MDGi/hotwater_dashboard` |
-| **Cold Water** | `http://splunk:8000/app/MDGi/coldwater_dashboard` |
+| **Heating** | `http://splunk:8000/app/MDGi/utilities_heating_dashboard` |
+| **Hot Water** | `http://splunk:8000/app/MDGi/utilities_hotwater_dashboard` |
+| **Cold Water** | `http://splunk:8000/app/MDGi/utilities_coldwater_dashboard` |
 
 ---
 
@@ -363,7 +363,7 @@ sudo /opt/splunk/bin/splunk restart splunkweb
 ```xml
 <!-- Ensure the app name matches your actual app name -->
 <drilldown>
-  <link target="_blank">/app/MDGi/heating_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
+  <link target="_blank">/app/MDGi/utilities_heating_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
 </drilldown>
 ```
 
@@ -413,9 +413,9 @@ After integration, your MDGi app structure should look like:
 │   │       │   └── default.xml (UPDATED)
 │   │       └── views/
 │   │           ├── utilities_overview_dashboard.xml (NEW)
-│   │           ├── heating_dashboard.xml (NEW)
-│   │           ├── hotwater_dashboard.xml (NEW)
-│   │           └── coldwater_dashboard.xml (NEW)
+│   │           ├── utilities_heating_dashboard.xml (NEW)
+│   │           ├── utilities_hotwater_dashboard.xml (NEW)
+│   │           └── utilities_coldwater_dashboard.xml (NEW)
 │   └── metadata/
 │       └── default.meta (OPTIONAL)
 └── ... (existing MDGi app files)
@@ -453,9 +453,9 @@ sudo cp nav/default.xml.backup nav/default.xml
 
 # Remove dashboard files
 sudo rm -f views/utilities_overview_dashboard.xml
-sudo rm -f views/heating_dashboard.xml
-sudo rm -f views/hotwater_dashboard.xml
-sudo rm -f views/coldwater_dashboard.xml
+sudo rm -f views/utilities_heating_dashboard.xml
+sudo rm -f views/utilities_hotwater_dashboard.xml
+sudo rm -f views/utilities_coldwater_dashboard.xml
 
 # Reload
 sudo /opt/splunk/bin/splunk restart splunkweb
@@ -497,9 +497,9 @@ Create shortcuts on MDGi home screen:
       <h2>Quick Links</h2>
       <ul>
         <li><a href="/app/MDGi/utilities_overview_dashboard">🏠 Utilities Overview</a></li>
-        <li><a href="/app/MDGi/heating_dashboard">🔥 Heating System</a></li>
-        <li><a href="/app/MDGi/hotwater_dashboard">💧 Hot Water</a></li>
-        <li><a href="/app/MDGi/coldwater_dashboard">🚰 Cold Water</a></li>
+        <li><a href="/app/MDGi/utilities_heating_dashboard">🔥 Heating System</a></li>
+        <li><a href="/app/MDGi/utilities_hotwater_dashboard">💧 Hot Water</a></li>
+        <li><a href="/app/MDGi/utilities_coldwater_dashboard">🚰 Cold Water</a></li>
       </ul>
     </html>
   </panel>

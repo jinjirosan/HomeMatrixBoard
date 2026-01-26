@@ -10,9 +10,9 @@ cd /opt/splunk/etc/apps/MDGi/local/data/ui/views/
 
 # Copy all 4 dashboards
 sudo cp ~/github/HomeMatrixBoard/utilities/utilities_overview_dashboard.xml .
-sudo cp ~/github/HomeMatrixBoard/utilities/heating_dashboard.xml .
-sudo cp ~/github/HomeMatrixBoard/utilities/hotwater_dashboard.xml .
-sudo cp ~/github/HomeMatrixBoard/utilities/coldwater_dashboard.xml .
+sudo cp ~/github/HomeMatrixBoard/utilities/utilities_heating_dashboard.xml .
+sudo cp ~/github/HomeMatrixBoard/utilities/utilities_hotwater_dashboard.xml .
+sudo cp ~/github/HomeMatrixBoard/utilities/utilities_coldwater_dashboard.xml .
 
 # Fix permissions
 sudo chown -R splunk:splunk /opt/splunk/etc/apps/MDGi/
@@ -37,9 +37,9 @@ sudo nano default.xml
   <!-- Utilities Monitoring -->
   <collection label="Utilities">
     <view name="utilities_overview_dashboard" />
-    <view name="heating_dashboard" />
-    <view name="hotwater_dashboard" />
-    <view name="coldwater_dashboard" />
+    <view name="utilities_heating_dashboard" />
+    <view name="utilities_hotwater_dashboard" />
+    <view name="utilities_coldwater_dashboard" />
   </collection>
 ```
 
@@ -75,9 +75,9 @@ After deployment, access dashboards at:
 
 ```
 http://your-splunk:8000/app/MDGi/utilities_overview_dashboard
-http://your-splunk:8000/app/MDGi/heating_dashboard
-http://your-splunk:8000/app/MDGi/hotwater_dashboard
-http://your-splunk:8000/app/MDGi/coldwater_dashboard
+http://your-splunk:8000/app/MDGi/utilities_heating_dashboard
+http://your-splunk:8000/app/MDGi/utilities_hotwater_dashboard
+http://your-splunk:8000/app/MDGi/utilities_coldwater_dashboard
 ```
 
 ---
@@ -88,9 +88,7 @@ http://your-splunk:8000/app/MDGi/coldwater_dashboard
 
 ```bash
 # Check files exist
-ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/*water*.xml
-ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/heating*.xml
-ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/utilities*.xml
+ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/utilities_*.xml
 
 # Fix permissions if needed
 sudo chown -R splunk:splunk /opt/splunk/etc/apps/MDGi/
@@ -122,9 +120,9 @@ sudo cp default.xml.backup default.xml
 # Remove dashboards
 cd /opt/splunk/etc/apps/MDGi/local/data/ui/views/
 sudo rm -f utilities_overview_dashboard.xml
-sudo rm -f heating_dashboard.xml  
-sudo rm -f hotwater_dashboard.xml
-sudo rm -f coldwater_dashboard.xml
+sudo rm -f utilities_heating_dashboard.xml  
+sudo rm -f utilities_hotwater_dashboard.xml
+sudo rm -f utilities_coldwater_dashboard.xml
 
 # Reload
 sudo /opt/splunk/bin/splunk restart splunkweb

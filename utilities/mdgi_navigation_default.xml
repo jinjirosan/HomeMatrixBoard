@@ -14,9 +14,9 @@
   <!-- New Utilities Monitoring Collection -->
   <collection label="Utilities">
     <view name="utilities_overview_dashboard" />
-    <view name="heating_dashboard" />
-    <view name="hotwater_dashboard" />
-    <view name="coldwater_dashboard" />
+    <view name="utilities_heating_dashboard" />
+    <view name="utilities_hotwater_dashboard" />
+    <view name="utilities_coldwater_dashboard" />
   </collection>
   
   <collection label="Splunk Health">

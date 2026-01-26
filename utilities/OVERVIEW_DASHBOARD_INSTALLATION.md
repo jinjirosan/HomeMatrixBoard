@@ -333,7 +333,7 @@ You can add drill-down from the overview to specific utility dashboards:
    ```xml
    <option name="drilldown">all</option>
    <drilldown>
-     <link target="_blank">/app/search/coldwater_dashboard?form.time.earliest=$earliest$&amp;form.time.latest=$latest$</link>
+     <link target="_blank">/app/search/utilities_coldwater_dashboard?form.time.earliest=$earliest$&amp;form.time.latest=$latest$</link>
    </drilldown>
    ```
 
@@ -347,7 +347,7 @@ Create a navigation menu entry:
 <nav>
   <collection label="Utilities">
     <view name="utilities_overview_dashboard" default="true" />
-    <view name="coldwater_dashboard" />
+    <view name="utilities_coldwater_dashboard" />
     <divider />
     <saved source="unclassified" />
   </collection>
@@ -434,8 +434,9 @@ To share with other Splunk instances:
 - `README.md` - Overall project documentation
 
 ### **Related Dashboards:**
-- `coldwater_dashboard.xml` - Detailed cold water monitoring
-- (Future) `heating_dashboard.xml` - Heating system details
+- `utilities_coldwater_dashboard.xml` - Detailed cold water monitoring
+- `utilities_heating_dashboard.xml` - Heating system details
+- `utilities_hotwater_dashboard.xml` - Hot water system details
 - (Future) `energy_dashboard.xml` - Energy consumption analysis
 
 ---
