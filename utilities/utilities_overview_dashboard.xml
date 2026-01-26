@@ -25,23 +25,27 @@
       <title>🔥 Heating System</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=kamstrup:heating volume=*
-| stats latest(volume) as volume_m3, latest(power) as power_kw, latest(temp1) as temp1
-| eval display_value=round(volume_m3, 2)
-| fields display_value, power_kw, temp1</query>
-          <earliest>-15m</earliest>
+          <query>index=utilities sourcetype=kamstrup:heating
+| stats 
+    earliest(heat_energy) as start_energy,
+    latest(heat_energy) as end_energy
+| eval consumption_kwh = (end_energy - start_energy) * 1000
+| eval display_value = round(consumption_kwh, 1)
+| fields display_value</query>
+          <earliest>@d</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
         </search>
         <option name="drilldown">all</option>
-        <option name="numberPrecision">0.01</option>
-        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
-        <option name="rangeValues">[10,20,30]</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[50,100,200,300]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">VOLUME (m³) - Click for Details</option>
-        <option name="unit">m³</option>
+        <option name="underLabel">TODAY'S CONSUMPTION (kWh)</option>
+        <option name="unit">kWh</option>
         <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
         <drilldown>
           <link target="_blank">/app/mdgi/utilities_heating_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
         </drilldown>
@@ -52,23 +56,28 @@
       <title>💧 Hot Water</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=kamstrup:hotwater volume=*
-| stats latest(volume) as volume_m3, latest(power) as power_kw, latest(temp1) as temp1
-| eval display_value=round(volume_m3, 2)
-| fields display_value, power_kw, temp1</query>
-          <earliest>-15m</earliest>
+          <query>index=utilities sourcetype=kamstrup:hotwater
+| stats 
+    earliest(volume) as start_volume,
+    latest(volume) as end_volume
+| eval consumption_m3 = end_volume - start_volume
+| eval consumption_liters = consumption_m3 * 1000
+| eval display_value = round(consumption_liters, 0)
+| fields display_value</query>
+          <earliest>@d</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
         </search>
         <option name="drilldown">all</option>
-        <option name="numberPrecision">0.01</option>
+        <option name="numberPrecision">0</option>
         <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
-        <option name="rangeValues">[8,15,25]</option>
+        <option name="rangeValues">[200,400,600]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">VOLUME (m³) - Click for Details</option>
-        <option name="unit">m³</option>
+        <option name="underLabel">TODAY'S CONSUMPTION (Liters)</option>
+        <option name="unit">L</option>
         <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
         <drilldown>
           <link target="_blank">/app/mdgi/utilities_hotwater_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
         </drilldown>
@@ -79,11 +88,14 @@
       <title>🚰 Cold Water</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=elster:coldwater current_value=*
-| stats latest(current_value) as total_liters
-| eval display_value=round(total_liters, 0)
+          <query>index=utilities sourcetype=elster:coldwater
+| stats 
+    earliest(current_value) as start_today,
+    latest(current_value) as current_reading
+| eval liters_today = current_reading - start_today
+| eval display_value = round(liters_today, 0)
 | fields display_value</query>
-          <earliest>-15m</earliest>
+          <earliest>@d</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
@@ -91,9 +103,9 @@
         <option name="drilldown">all</option>
         <option name="numberPrecision">0</option>
         <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
-        <option name="rangeValues">[400000,500000,600000]</option>
+        <option name="rangeValues">[200,400,600]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">TOTAL LITERS - Click for Details</option>
+        <option name="underLabel">TODAY'S CONSUMPTION (Liters)</option>
         <option name="unit">L</option>
         <option name="useColors">1</option>
         <option name="useThousandSeparators">1</option>
@@ -500,18 +512,19 @@
       <title>⚠️ Anomaly Detection - High Flow/Power Alerts</title>
       <table>
         <search>
-          <query>index=utilities (flow=* OR water_used_last_minute=* OR power=*)
+          <query>index=utilities sourcetype IN (kamstrup:heating, kamstrup:hotwater, elster:coldwater)
 | eval flow_metric=case(
-    isnotnull(flow), flow,
-    isnotnull(water_used_last_minute), water_used_last_minute * 60,
+    sourcetype=="kamstrup:heating" AND isnotnull(flow), flow * 1000,
+    sourcetype=="kamstrup:hotwater" AND isnotnull(flow), flow * 1000,
+    sourcetype=="elster:coldwater" AND isnotnull(water_used_last_minute), water_used_last_minute * 60,
     isnotnull(power), power * 100,
-    1=1, 0
+    1=1, null()
   )
 | eval utility=case(
     sourcetype=="kamstrup:hotwater", "💧 Hot Water",
     sourcetype=="elster:coldwater", "🚰 Cold Water",
     sourcetype=="kamstrup:heating", "🔥 Heating",
-    1=1, mqtt_topic
+    1=1, "Unknown"
   )
 | stats 
     avg(flow_metric) as avg_flow,
@@ -521,7 +534,7 @@
     by utility
 | eval threshold=avg_flow + (2 * stdev_flow)
 | eval alert_level=case(
-    max_flow &gt; threshold, "⚠️ HIGH",
+    max_flow &gt; threshold, "⚠️ ELEVATED",
     max_flow &gt; (threshold * 0.75), "⚡ ELEVATED",
     1=1, "✅ NORMAL"
   )
@@ -558,7 +571,7 @@
       <title>🚨 Leak Detection Status (All Systems)</title>
       <table>
         <search>
-          <query>index=utilities (leak_burst=* OR leak_detect=*)
+          <query>index=utilities sourcetype IN (kamstrup:heating, kamstrup:hotwater, elster:coldwater)
 | eval utility=case(
     sourcetype=="kamstrup:heating", "🔥 Heating",
     sourcetype=="kamstrup:hotwater", "💧 Hot Water",
@@ -584,7 +597,7 @@
 | eval last_check_time=strftime(last_check, "%Y-%m-%d %H:%M")
 | table utility, leak_type, status, total_leak_events, last_check_time
 | sort utility</query>
-          <earliest>-24h</earliest>
+          <earliest>-1h</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
@@ -645,7 +658,7 @@
       <title>⭐ Heating Efficiency (Energy per Volume)</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=kamstrup:heating (heat_energy=* OR volume=*)
+          <query>index=utilities sourcetype=kamstrup:heating
 | stats 
     latest(heat_energy) as energy_mwh,
     latest(volume) as volume_m3
@@ -717,7 +730,7 @@
       <title>📡 Average Signal Strength</title>
       <single>
         <search>
-          <query>index=utilities wifi_rssi=*
+          <query>index=utilities
 | stats avg(wifi_rssi) as avg_signal
 | eval avg_signal=round(avg_signal, 0)
 | fields avg_signal</query>
