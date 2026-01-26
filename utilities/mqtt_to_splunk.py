@@ -263,9 +263,9 @@ def on_message(client, userdata, msg):
         logger.error(f"Error processing message from topic '{msg.topic}': {e}", exc_info=True)
 
 
-def on_subscribe(client, userdata, mid, granted_qos):
-    """Callback when subscription is confirmed"""
-    logger.debug(f"Subscription confirmed. QoS: {granted_qos}")
+def on_subscribe(client, userdata, mid, reason_codes, properties):
+    """Callback when subscription is confirmed (API VERSION2)"""
+    logger.debug(f"Subscription confirmed. Reason codes: {reason_codes}")
 
 
 def on_log(client, userdata, level, buf):
