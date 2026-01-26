@@ -134,35 +134,45 @@
       <title>System Health Overview</title>
       <table>
         <search>
-          <query>index=utilities sourcetype IN (kamstrup:*, elster:*)
-| eval utility=case(
-    sourcetype=="kamstrup:heating", "🔥 Heating",
-    sourcetype=="kamstrup:hotwater", "💧 Hot Water",
-    sourcetype=="elster:coldwater", "🚰 Cold Water",
-    sourcetype=="emonpi:energy", "⚡ Energy",
-    1=1, "Unknown"
+          <query>| makeresults 
+| eval utilities="🔥 Heating,💧 Hot Water,🚰 Cold Water,⚡ Energy"
+| makemv delim="," utilities
+| mvexpand utilities
+| eval sourcetype=case(
+    utilities=="🔥 Heating", "kamstrup:heating",
+    utilities=="💧 Hot Water", "kamstrup:hotwater",
+    utilities=="🚰 Cold Water", "elster:coldwater",
+    utilities=="⚡ Energy", "emonpi:energy",
+    1=1, "unknown"
   )
-| stats 
-    count as message_count,
-    latest(_time) as last_seen,
-    latest(wifi_rssi) as signal_dbm,
-    latest(running_firmware_version) as firmware
-    by utility
-| eval time_since=now() - last_seen
+| join type=left sourcetype 
+    [search index=utilities sourcetype IN (kamstrup:*, elster:*, emonpi:*) earliest=-1h latest=now
+    | stats 
+        count as message_count,
+        latest(_time) as last_seen,
+        latest(wifi_rssi) as signal_dbm,
+        latest(running_firmware_version) as firmware
+        by sourcetype]
+| eval time_since=if(isnull(last_seen), 999999, now() - last_seen)
 | eval status=case(
+    isnull(last_seen), "🔴 NO DATA",
     time_since &lt; 120, "🟢 ONLINE",
     time_since &lt; 600, "🟡 DELAYED",
     1=1, "🔴 OFFLINE"
   )
 | eval signal_quality=case(
+    isnull(signal_dbm), "N/A",
     signal_dbm &gt; -50, "Excellent",
     signal_dbm &gt; -60, "Good",
     signal_dbm &gt; -70, "Fair",
     1=1, "Poor"
   )
-| eval last_seen_friendly=strftime(last_seen, "%H:%M:%S")
-| table utility, status, message_count, last_seen_friendly, signal_dbm, signal_quality, firmware
-| sort utility</query>
+| eval message_count=coalesce(message_count, 0)
+| eval last_seen_friendly=if(isnull(last_seen), "Never", strftime(last_seen, "%H:%M:%S"))
+| eval signal_dbm=if(isnull(signal_dbm), "N/A", tostring(signal_dbm))
+| eval firmware=coalesce(firmware, "N/A")
+| rename utilities as utility
+| table utility, status, message_count, last_seen_friendly, signal_dbm, signal_quality, firmware</query>
           <earliest>-1h</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>

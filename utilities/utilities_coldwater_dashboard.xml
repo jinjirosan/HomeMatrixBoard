@@ -225,10 +225,14 @@
       <title>Hourly Usage Today</title>
       <table>
         <search>
-          <query>index=utilities sourcetype=elster:coldwater water_used_last_minute=*
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
     earliest=@d latest=now
 | eval hour=strftime(_time, "%H:00")
-| stats sum(water_used_last_minute) as hourly_liters by hour
+| stats 
+    earliest(current_value) as hour_start,
+    latest(current_value) as hour_end
+    by hour
+| eval hourly_liters=hour_end - hour_start
 | eval hourly_gallons=round(hourly_liters * 0.264172, 1)
 | eval hourly_liters=round(hourly_liters, 1)
 | eval usage_level=case(
@@ -237,6 +241,7 @@
     hourly_liters &lt; 60, "High",
     1=1, "Very High"
   )
+| where hourly_liters &gt; 0
 | table hour, hourly_liters, hourly_gallons, usage_level
 | sort hour</query>
           <earliest>@d</earliest>
