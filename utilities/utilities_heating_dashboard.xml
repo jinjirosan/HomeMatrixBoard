@@ -126,7 +126,7 @@
       <title>Temperature Differential (ΔT)</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=kamstrup:heating (temp1=* AND temp2=*)
+          <query>index=utilities sourcetype=kamstrup:heating
 | stats 
     latest(temp1) as supply_temp,
     latest(temp2) as return_temp
@@ -279,7 +279,7 @@
       <title>📐 Temperature Differential (ΔT) Timeline</title>
       <chart>
         <search>
-          <query>index=utilities sourcetype=kamstrup:heating (temp1=* AND temp2=*)
+          <query>index=utilities sourcetype=kamstrup:heating temp1=* temp2=*
 | eval delta_t = temp1 - temp2
 | timechart span=10m avg(delta_t) as avg_delta_t
 | eval avg_delta_t = round(avg_delta_t, 1)</query>
@@ -475,7 +475,7 @@
       <title>📐 Average ΔT (Efficiency Indicator)</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=kamstrup:heating (temp1=* AND temp2=*)
+          <query>index=utilities sourcetype=kamstrup:heating temp1=* temp2=*
 | eval delta_t = temp1 - temp2
 | stats avg(delta_t) as avg_delta
 | eval avg_delta = round(avg_delta, 1)
@@ -503,7 +503,7 @@
       <title>⚠️ System Efficiency Alert</title>
       <table>
         <search>
-          <query>index=utilities sourcetype=kamstrup:heating (temp1=* AND temp2=* AND power=*)
+          <query>index=utilities sourcetype=kamstrup:heating temp1=* temp2=* power=*
 | eval delta_t = temp1 - temp2
 | eval is_heating = if(power &gt; 1, 1, 0)
 | stats 
