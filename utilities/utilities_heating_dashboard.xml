@@ -280,6 +280,7 @@
       <chart>
         <search>
           <query>index=utilities sourcetype=kamstrup:heating
+| where isnotnull(temp1) AND isnotnull(temp2)
 | eval delta_t = temp1 - temp2
 | timechart span=10m avg(delta_t) as avg_delta_t
 | eval avg_delta_t = round(avg_delta_t, 1)</query>
@@ -476,6 +477,7 @@
       <single>
         <search>
           <query>index=utilities sourcetype=kamstrup:heating
+| where isnotnull(temp1) AND isnotnull(temp2)
 | eval delta_t = temp1 - temp2
 | stats avg(delta_t) as avg_delta
 | eval avg_delta = round(avg_delta, 1)
@@ -504,6 +506,7 @@
       <table>
         <search>
           <query>index=utilities sourcetype=kamstrup:heating
+| where isnotnull(temp1) AND isnotnull(temp2) AND isnotnull(power)
 | eval delta_t = temp1 - temp2
 | eval is_heating = if(power &gt; 1, 1, 0)
 | stats 
