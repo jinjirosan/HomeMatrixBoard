@@ -132,7 +132,7 @@
   <row>
     <panel>
       <title>🔄 Heating Valve Status</title>
-      <html>
+      <table>
         <search>
           <query>index=utilities sourcetype=kamstrup:heating
 | stats 
@@ -146,68 +146,34 @@
 | eval temp_diff_active = if(delta_t > 5, 1, 0)
 | eval heating_score = power_active + flow_active + temp_diff_active
 | eval valve_status = if(heating_score >= 2, "OPEN", "CLOSED")
-| eval status_color = if(valve_status == "OPEN", "#65A637", "#999999")
-| eval status_icon = if(valve_status == "OPEN", "🟢", "⚫")
-| eval indicators = case(
-    power_active == 1, "✓ Power (" + tostring(round(current_power, 1)) + " kW) ",
-    1=1, "✗ Power "
-  ) + case(
-    flow_active == 1, "✓ Flow (" + tostring(round(current_flow, 3)) + " m³/h) ",
-    1=1, "✗ Flow "
-  ) + case(
-    temp_diff_active == 1, "✓ Temp Δ (" + tostring(delta_t) + "°C)",
-    1=1, "✗ Temp Δ"
-  )
-| table valve_status, status_icon, status_color, indicators, current_power, current_flow, delta_t</query>
+| eval status_icon = if(valve_status == "OPEN", "🟢 OPEN", "⚫ CLOSED")
+| eval power_indicator = if(power_active == 1, "✓ Power (" + tostring(round(current_power, 1)) + " kW)", "✗ Power")
+| eval flow_indicator = if(flow_active == 1, "✓ Flow (" + tostring(round(current_flow, 3)) + " m³/h)", "✗ Flow")
+| eval temp_indicator = if(temp_diff_active == 1, "✓ Temp Δ (" + tostring(delta_t) + "°C)", "✗ Temp Δ")
+| table status_icon, power_indicator, flow_indicator, temp_indicator
+| rename status_icon as "Valve Status", power_indicator as "Power", flow_indicator as "Flow", temp_indicator as "Temperature"</query>
           <earliest>-5m</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
         </search>
-        <style>
-          .valve-status-container {
-            text-align: center;
-            padding: 20px;
-            margin: 10px;
-            border-radius: 8px;
-            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-            border: 2px solid #ccc;
-          }
-          .valve-status-main {
-            font-size: 56px;
-            font-weight: bold;
-            margin: 10px 0;
-          }
-          .valve-status-open {
-            color: #65A637;
-          }
-          .valve-status-closed {
-            color: #999999;
-          }
-          .valve-indicators {
-            font-size: 16px;
-            color: #333;
-            margin-top: 15px;
-            font-family: 'Courier New', monospace;
-            line-height: 1.6;
-          }
-          .valve-label {
-            font-size: 18px;
-            color: #666;
-            margin-top: 5px;
-            font-weight: bold;
-          }
-        </style>
-        <div class="valve-status-container">
-          <div class="valve-status-main valve-status-$result.valve_status$" style="color: $result.status_color$;">
-            $result.status_icon$ $result.valve_status$
-          </div>
-          <div class="valve-label">Heating System Valve</div>
-          <div class="valve-indicators">
-            $result.indicators$
-          </div>
-        </div>
-      </html>
+        <option name="count">1</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <format type="color" field="Valve Status">
+          <colorPalette type="expression">case(match(value, "OPEN"), "#65A637", match(value, "CLOSED"), "#999999")</colorPalette>
+        </format>
+        <format type="color" field="Power">
+          <colorPalette type="expression">case(match(value, "✓"), "#65A637", match(value, "✗"), "#D93F3C")</colorPalette>
+        </format>
+        <format type="color" field="Flow">
+          <colorPalette type="expression">case(match(value, "✓"), "#65A637", match(value, "✗"), "#D93F3C")</colorPalette>
+        </format>
+        <format type="color" field="Temperature">
+          <colorPalette type="expression">case(match(value, "✓"), "#65A637", match(value, "✗"), "#D93F3C")</colorPalette>
+        </format>
+      </table>
     </panel>
   </row>
   
