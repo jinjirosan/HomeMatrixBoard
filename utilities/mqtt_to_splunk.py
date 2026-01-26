@@ -35,6 +35,10 @@ import requests
 import time
 from datetime import datetime
 import logging
+import urllib3
+
+# Disable SSL warnings when SPLUNK_VERIFY_SSL = False
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configure logging
 logging.basicConfig(
