@@ -122,6 +122,45 @@
         <option name="useColors">1</option>
       </single>
     </panel>
+    
+    <panel>
+      <title>🔄 Valve Status</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating
+| stats 
+    latest(power) as current_power,
+    latest(flow) as current_flow,
+    latest(temp1) as supply_temp,
+    latest(temp2) as return_temp
+| eval delta_t = supply_temp - return_temp
+| eval power_active = if(current_power > 0.5, 1, 0)
+| eval flow_active = if(current_flow > 0, 1, 0)
+| eval temp_diff_active = if(delta_t > 5, 1, 0)
+| eval heating_score = power_active + flow_active + temp_diff_active
+| eval valve_status = if(heating_score >= 2, "OPEN", "CLOSED")
+| eval display_value = if(valve_status == "OPEN", 1, 0)
+| eval status_detail = case(
+    valve_status == "OPEN" AND heating_score == 3, "HEATING (All Indicators)",
+    valve_status == "OPEN" AND power_active == 1, "HEATING (Power + Flow/Temp)",
+    valve_status == "OPEN", "HEATING (Partial)",
+    heating_score == 1, "STANDBY (1 Indicator)",
+    1=1, "OFF (No Activity)"
+  )
+| fields display_value, valve_status, status_detail</query>
+          <earliest>-5m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x999999","0x65A637"]</option>
+        <option name="rangeValues">[0.5]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">VALVE STATUS</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
   </row>
   
   <!-- Row 2: Power Timeline -->
