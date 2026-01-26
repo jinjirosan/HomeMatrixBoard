@@ -74,7 +74,18 @@ Or via CLI:
 
 **Important**: Save the token securely - it will only be displayed once!
 
-### 1.2 Create Saved Searches
+### 1.2 Create Required Role Capabilities
+
+Before creating saved searches, ensure your role has the necessary capabilities:
+
+**Settings → Access controls → Roles → [your_role] → Edit**
+
+Required capabilities:
+- ✅ **`search`** - Ability to run searches
+- ✅ **`schedule_search`** - Ability to dispatch saved searches
+- ✅ **`rtsearch`** - Real-time search capability
+
+### 1.3 Create Saved Searches
 
 Create a Splunk app to hold these saved searches:
 
@@ -97,7 +108,6 @@ Create `/opt/splunk/etc/apps/magicmirror_utilities/default/savedsearches.conf`:
 # ------------------------------
 [utilities_heating_status]
 search = index=utilities sourcetype=kamstrup:heating earliest=-30s latest=now \
-| where isnotnull(power) AND isnotnull(flow) AND isnotnull(temp1) AND isnotnull(temp2) \
 | stats \
     latest(power) as power, \
     latest(flow) as flow, \
@@ -110,7 +120,7 @@ search = index=utilities sourcetype=kamstrup:heating earliest=-30s latest=now \
 | eval heating_score = power_active + flow_active + temp_diff_active \
 | eval status = if(heating_score >= 2, "ON", "OFF") \
 | eval power_display = round(power, 1) \
-| eval flow_display = round(flow * 1000, 1) \
+| eval flow_display = round(flow, 1) \
 | table status, power_display, flow_display, delta_t
 enableSched = 1
 cron_schedule = */10 * * * * *
@@ -209,21 +219,38 @@ sudo /opt/splunk/bin/splunk restart
 # List saved searches
 /opt/splunk/bin/splunk list saved-search -auth admin:password
 
-# Test a saved search
+# Test a saved search using export endpoint (recommended)
 curl -k -H "Authorization: Bearer YOUR_TOKEN_HERE" \
-  "https://your-search-head:8089/services/saved/searches/utilities_heating_status/dispatch" \
+  "https://your-search-head:8089/services/search/jobs/export" \
+  -d search="| savedsearch utilities_heating_status" \
   -d output_mode=json
+
+# Expected response:
+# {"preview":false,"offset":0,"lastrow":true,"result":{"status":"OFF","power_display":"0.0","flow_display":"0.0","delta_t":"13.7"}}
 ```
 
-### 1.4 Set Permissions (Optional)
+**Why use the export endpoint?**
+- Returns results immediately (no polling required)
+- Simpler API call (single request)
+- No permission issues with job results
+- More reliable for MagicMirror use case
+
+### 1.4 Set Permissions (Optional but Recommended)
 
 If you want to restrict access to only the utilities index:
 
 ```bash
-# Create a dedicated role
+# Create a dedicated role with required capabilities
 /opt/splunk/bin/splunk add role magicmirror_role \
   -srchIndexesAllowed utilities \
   -srchIndexesDefault utilities \
+  -auth admin:password
+
+# Add required capabilities to the role
+/opt/splunk/bin/splunk edit role magicmirror_role \
+  -addcapability search \
+  -addcapability schedule_search \
+  -addcapability rtsearch \
   -auth admin:password
 
 # Create a service account
@@ -232,6 +259,19 @@ If you want to restrict access to only the utilities index:
   -role magicmirror_role \
   -auth admin:password
 ```
+
+**Or via Web UI:**
+
+1. **Settings → Access controls → Roles → New Role**
+   - Name: `magicmirror_role`
+   - Indexes searched by default: `utilities`
+   - Indexes: Check `utilities`
+   - Capabilities: Check `search`, `schedule_search`, `rtsearch`
+
+2. **Settings → Access controls → Users → New User**
+   - Username: `magicmirror_api`
+   - Password: (secure password)
+   - Assign to role: `magicmirror_role`
 
 ---
 
@@ -563,112 +603,60 @@ module.exports = NodeHelper.create({
     }
   },
 
-  // Query Splunk saved search
+  // Query Splunk saved search using export endpoint (faster, simpler)
   querySplunk: function(config, searchName, callback) {
-    const self = this;
-    
-    // Parse Splunk host
     const url = new URL(config.splunkHost);
     
-    // Dispatch the saved search
-    const dispatchPath = `/services/saved/searches/${searchName}/dispatch`;
-    const dispatchOptions = {
+    // Use export endpoint for immediate results
+    const searchQuery = `| savedsearch ${searchName}`;
+    const postData = querystring.stringify({
+      search: searchQuery,
+      output_mode: "json"
+    });
+    
+    const options = {
       hostname: url.hostname,
       port: url.port || 8089,
-      path: dispatchPath,
+      path: "/services/search/jobs/export",
       method: "POST",
       headers: {
         "Authorization": "Bearer " + config.splunkToken,
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(postData)
       },
       rejectUnauthorized: false // For self-signed certs
     };
 
-    const dispatchReq = https.request(dispatchOptions, function(res) {
-      let data = "";
-      res.on("data", function(chunk) { data += chunk; });
-      res.on("end", function() {
-        if (res.statusCode === 201) {
-          // Extract job SID
-          const sidMatch = data.match(/<sid>(.*?)<\/sid>/);
-          if (sidMatch) {
-            const sid = sidMatch[1];
-            // Poll for results
-            self.pollSplunkResults(config, sid, callback);
-          } else {
-            callback(new Error("Could not extract SID from dispatch response"));
-          }
-        } else {
-          callback(new Error("Dispatch failed: " + res.statusCode));
-        }
-      });
-    });
-
-    dispatchReq.on("error", function(e) {
-      callback(e);
-    });
-
-    dispatchReq.write(querystring.stringify({ output_mode: "json" }));
-    dispatchReq.end();
-  },
-
-  // Poll for search results
-  pollSplunkResults: function(config, sid, callback, attempts = 0) {
-    const self = this;
-    const maxAttempts = 20;
-    const url = new URL(config.splunkHost);
-
-    if (attempts >= maxAttempts) {
-      callback(new Error("Timeout waiting for search results"));
-      return;
-    }
-
-    const resultsPath = `/services/search/jobs/${sid}/results?output_mode=json&count=0`;
-    const resultsOptions = {
-      hostname: url.hostname,
-      port: url.port || 8089,
-      path: resultsPath,
-      method: "GET",
-      headers: {
-        "Authorization": "Bearer " + config.splunkToken
-      },
-      rejectUnauthorized: false
-    };
-
-    const resultsReq = https.request(resultsOptions, function(res) {
+    const req = https.request(options, function(res) {
       let data = "";
       res.on("data", function(chunk) { data += chunk; });
       res.on("end", function() {
         if (res.statusCode === 200) {
           try {
+            // Parse JSON response - export returns single result object
             const json = JSON.parse(data);
-            if (json.results && json.results.length > 0) {
+            if (json.result) {
+              callback(null, json.result);
+            } else if (json.results && json.results.length > 0) {
               callback(null, json.results[0]);
             } else {
-              // No results yet, poll again
-              setTimeout(function() {
-                self.pollSplunkResults(config, sid, callback, attempts + 1);
-              }, 200);
+              callback(null, null); // No results
             }
           } catch (e) {
-            callback(e);
+            callback(new Error("Failed to parse results: " + e.message));
           }
-        } else if (res.statusCode === 204) {
-          // Job not ready, poll again
-          setTimeout(function() {
-            self.pollSplunkResults(config, sid, callback, attempts + 1);
-          }, 200);
         } else {
-          callback(new Error("Results request failed: " + res.statusCode));
+          callback(new Error("Search failed: " + res.statusCode + " - " + data));
         }
       });
     });
 
-    resultsReq.on("error", function(e) {
+    req.on("error", function(e) {
       callback(e);
     });
 
-    resultsReq.end();
+    req.write(postData);
+    req.end();
   },
 
   // Get heating status
@@ -1072,27 +1060,44 @@ pm2 logs MagicMirror
 
 ### 4.3 Common Issues
 
+**Issue: "The user 'X' does not have sufficient search privileges"**
+- **Cause**: User's role lacks required capabilities
+- **Fix**: Add these capabilities to the role:
+  ```bash
+  /opt/splunk/bin/splunk edit role YOUR_ROLE \
+    -addcapability search \
+    -addcapability schedule_search \
+    -addcapability rtsearch \
+    -auth admin:password
+  ```
+- Or via Web UI: Settings → Roles → Edit → Check `search`, `schedule_search`, `rtsearch`
+
+**Issue: "insufficient permission to access this resource"**
+- **Cause**: Saved search "Run As" is set to "Owner" instead of "User"
+- **Fix**: Edit each saved search → Permissions → Set "Run As" to **User** (not Owner)
+- This ensures results are owned by the calling user, not the search owner
+
 **Issue: "Authorization failed"**
 - Check your Splunk token is correct
 - Verify token hasn't expired
-- Ensure token has `search` and `dispatch_saved_searches` capabilities
+- Test token with: `curl -k -H "Authorization: Bearer TOKEN" "https://splunk:8089/services/saved/searches?output_mode=json"`
 
 **Issue: "Saved search not found"**
 - Verify saved searches exist: `/opt/splunk/bin/splunk list saved-search`
-- Check app permissions
+- Check app permissions (saved search must be readable by your role)
 - Restart Splunk after creating saved searches
 
 **Issue: "Loading utilities..." never completes**
-- Check node_helper.js logs for errors
+- Check node_helper.js logs for errors: `pm2 logs MagicMirror`
 - Verify network connectivity from RPi to Splunk
-- Test Splunk API manually with curl
-- Check firewall rules (port 8089)
+- Test Splunk API manually with curl (see test commands above)
+- Check firewall rules (port 8089 must be accessible)
 
 **Issue: Module not appearing**
-- Check config.js syntax (JSON formatting)
-- Verify module files are in correct directory
-- Check browser console for JavaScript errors
-- Restart MagicMirror completely
+- Check config.js syntax (JSON formatting - use a validator)
+- Verify module files are in correct directory: `~/MagicMirror/modules/MMM-Utilities/`
+- Check browser console for JavaScript errors (F12)
+- Restart MagicMirror completely: `pm2 restart MagicMirror`
 
 ### 4.4 Debug Mode
 
