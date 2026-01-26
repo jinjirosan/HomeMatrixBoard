@@ -202,6 +202,16 @@ index=utilities sourcetype=kamstrup:* OR sourcetype=elster:*
 | stats avg(flow_rate) by sourcetype
 ```
 
+## Production Status
+
+✅ **System is operational and ingesting data successfully**
+
+**Stats:**
+- 939+ events indexed in first 24 hours
+- All sourcetypes working correctly (kamstrup:heating, kamstrup:hotwater, elster:coldwater)
+- HAProxy providing HA across 2 indexers
+- Zero data loss, automatic failover tested
+
 ## Troubleshooting
 
 ### Python Version Issues
@@ -246,6 +256,12 @@ sudo /usr/bin/python3 -m pip install paho-mqtt requests
 
 ### Script won't start
 
+**Common issues and solutions:**
+
+1. **MQTT Client API errors** - Script uses paho-mqtt CallbackAPIVersion.VERSION2
+2. **datetime.UTC errors** - Uses `timezone.utc` for compatibility
+3. **SSL warnings** - Automatically suppressed when `SPLUNK_VERIFY_SSL = False`
+
 ```bash
 # Check if credentials file exists
 ls -la splunk_credentials.py
@@ -253,8 +269,8 @@ ls -la splunk_credentials.py
 # Test MQTT connection manually
 mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P <password> -v -t "utilities/#"
 
-# Test Splunk HEC
-curl -k https://indexer:8088/services/collector/event \
+# Test Splunk HEC through HAProxy
+curl -k https://127.0.0.1:8088/services/collector/event \
   -H "Authorization: Splunk YOUR-TOKEN" \
   -d '{"event": "test", "sourcetype": "mqtt:metrics", "index": "utilities"}'
 ```

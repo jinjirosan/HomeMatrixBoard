@@ -213,6 +213,24 @@ index=utilities | head 10 | table _time sourcetype source mqtt_topic
 
 ## Common Issues
 
+### ❌ MQTT Callback API Errors
+
+**Symptom:** `TypeError: on_connect() takes 4 positional arguments but 5 were given`
+
+**Solution:** Script now uses paho-mqtt API VERSION2 with correct callback signatures:
+- `on_connect(client, userdata, flags, reason_code, properties)`
+- `on_subscribe(client, userdata, mid, reason_codes, properties)`
+
+This is already fixed in the latest version.
+
+### ❌ datetime.UTC Errors
+
+**Symptom:** `AttributeError: type object 'datetime.datetime' has no attribute 'UTC'`
+
+**Solution:** Uses `timezone.utc` instead of `datetime.UTC` for compatibility.
+
+Already fixed in the latest version.
+
 ### ❌ Python 2.7 Error
 
 **Symptom:** Script fails with "This script requires Python 3.6 or higher"
@@ -220,7 +238,7 @@ index=utilities | head 10 | table _time sourcetype source mqtt_topic
 **Solution:** 
 - Always use `/usr/bin/python3` explicitly
 - Check systemd service file uses `/usr/bin/python3`
-- Never use `/opt/splunk/bin/python`
+- Debian 12 uses Python 3.13.5 by default
 
 ### ❌ Module Not Found
 
@@ -290,30 +308,49 @@ sudo journalctl -u mqtt-to-splunk -f
 
 ## Testing Checklist
 
-- [ ] System Python 3.9.7+ installed and verified
-- [ ] Dependencies installed (`paho-mqtt`, `requests`)
-- [ ] `splunk_credentials.py` configured
-- [ ] Script runs successfully in foreground
-- [ ] Python version shows 3.9.7 (not 2.7) in logs
-- [ ] MQTT connection successful
-- [ ] Systemd service configured with correct paths
-- [ ] Service starts and stays running
-- [ ] Data appears in Splunk `utilities` index
-- [ ] Sourcetypes are correct (kamstrup:*, elster:*)
+- [x] System Python 3.11+ installed and verified (Python 3.13.5 confirmed)
+- [x] Dependencies installed (`paho-mqtt`, `requests`)
+- [x] HAProxy configured and running
+- [x] HAProxy stats page accessible (port 9000)
+- [x] Both indexers showing UP in HAProxy
+- [x] `splunk_credentials.py` configured
+- [x] Script runs successfully in foreground
+- [x] Python version shows 3.13.x (not 2.7) in logs
+- [x] MQTT connection successful
+- [x] MQTT callback API VERSION2 working
+- [x] No SSL warnings in logs
+- [x] Systemd service configured with correct paths
+- [x] Service starts and stays running
+- [x] Data appears in Splunk `utilities` index
+- [x] Sourcetypes are correct (kamstrup:heating, kamstrup:hotwater, elster:coldwater)
+- [x] 900+ events indexed successfully
 
 ## Success Indicators
 
 ✅ **Script is working if you see:**
-- Python Version: 3.9.7 in logs
+- Python Version: 3.13.x in logs
 - "Connected to MQTT broker successfully"
 - "Subscribed to topic: utilities/..." messages
-- No error messages in journalctl
+- No error messages, SSL warnings, or deprecation warnings in logs
+- Clean output with only INFO level messages
+
+✅ **HAProxy is working if:**
+- Stats page shows both indexers UP (green) at http://VM_IP:9000/stats
+- Can send test events through localhost:8088
+- Failover works when one indexer is stopped
 
 ✅ **Splunk integration working if:**
-- `index=utilities | stats count` returns events
-- `index=utilities | stats count by sourcetype` shows kamstrup:*, elster:*
-- Events have proper timestamps and fields
+- `index=utilities | stats count` returns 900+ events
+- `index=utilities | stats count by sourcetype` shows kamstrup:heating, kamstrup:hotwater, elster:coldwater
+- Events have proper timestamps and fields (mqtt_topic, received_at)
+- Raw values are properly wrapped (e.g., `{"pulse_count": 123}`)
 - Data is flowing continuously (check last 5 minutes)
+
+**Production Stats (26 Jan 2026):**
+- 939 events in first 24 hours
+- 3 sourcetypes active (kamstrup:heating, kamstrup:hotwater, elster:coldwater)
+- Zero data loss
+- HAProxy providing automatic failover
 
 ## Support
 
