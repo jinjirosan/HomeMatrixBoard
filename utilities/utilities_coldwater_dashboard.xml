@@ -78,55 +78,56 @@
     </panel>
     
     <panel>
-      <title>📟 Meter Reading (Meterstand)</title>
-      <html>
+      <title>📟 Meter Reading (Meterstand) - Black Digits</title>
+      <single>
         <search>
           <query>index=utilities sourcetype=elster:coldwater current_value=*
 | stats latest(current_value) as meter_reading
 | eval meter_thousands=floor(meter_reading / 1000)
-| eval meter_ones=meter_reading % 1000
-| eval meter_ones_formatted=if(meter_ones &lt; 10, "00" + tostring(meter_ones), if(meter_ones &lt; 100, "0" + tostring(meter_ones), tostring(meter_ones)))
-| table meter_thousands, meter_ones_formatted</query>
+| fields meter_thousands</query>
           <earliest>-5m</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
         </search>
-        <style>
-          .meter-display {
-            text-align: center;
-            padding: 20px;
-            font-family: 'Courier New', monospace;
-            background-color: #f5f5f5;
-            border: 2px solid #333;
-            border-radius: 8px;
-            margin: 10px;
-          }
-          .meter-value {
-            font-size: 48px;
-            font-weight: bold;
-            letter-spacing: 3px;
-          }
-          .meter-black {
-            color: #000000;
-          }
-          .meter-red {
-            color: #D93F3C;
-          }
-          .meter-label {
-            font-size: 14px;
-            color: #666;
-            margin-top: 10px;
-            font-family: Arial, sans-serif;
-          }
-        </style>
-        <div class="meter-display">
-          <div class="meter-value">
-            <span class="meter-black">$result.meter_thousands$</span><span class="meter-red">$result.meter_ones_formatted$</span>
-          </div>
-          <div class="meter-label">Liters (as shown on physical meter)</div>
-        </div>
-      </html>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x000000"]</option>
+        <option name="rangeValues">[]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">THOUSANDS (BLACK DIGITS)</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>📟 Meter Reading (Meterstand) - Red Digits</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
+| stats latest(current_value) as meter_reading
+| eval meter_ones=meter_reading % 1000
+| eval meter_ones_formatted=case(
+    meter_ones &lt; 10, "00" + tostring(meter_ones),
+    meter_ones &lt; 100, "0" + tostring(meter_ones),
+    1=1, tostring(meter_ones)
+  )
+| table meter_ones_formatted
+| rename meter_ones_formatted as "Red Digits"</query>
+          <earliest>-5m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">1</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="rowNumbers">false</option>
+        <format type="color" field="Red Digits">
+          <colorPalette type="list">[#D93F3C]</colorPalette>
+        </format>
+      </table>
     </panel>
   </row>
   
