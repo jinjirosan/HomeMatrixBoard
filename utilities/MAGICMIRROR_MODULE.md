@@ -315,20 +315,16 @@ Create `MMM-Utilities.js`:
  */
 
 Module.register("MMM-Utilities", {
-  // Default module config
   defaults: {
     splunkHost: "https://your-search-head:8089",
     splunkToken: "",
     updateInterval: {
-      heating: 10000,      // 10 seconds
-      energy: 30000,       // 30 seconds
-      water: 300000,       // 5 minutes
-      heating_daily: 300000 // 5 minutes
+      heating: 10000,
+      energy: 30000,
+      water: 300000,
+      heating_daily: 300000
     },
-    displayStyle: "minimalist", // minimalist, detailed, compact
-    showHeatingStatus: true,
-    showDailyTotals: true,
-    animateTransitions: true,
+    displayStyle: "minimalist",
     units: {
       water: "L",
       energy: "W",
@@ -336,58 +332,49 @@ Module.register("MMM-Utilities", {
     }
   },
 
-  // Required scripts
   getScripts: function() {
     return [];
   },
 
-  // Required styles
   getStyles: function() {
     return ["MMM-Utilities.css"];
   },
 
-  // Start the module
   start: function() {
     Log.info("Starting module: " + this.name);
+    
     this.loaded = false;
-    this.data = {
-      heating_status: null,
-      current_energy: null,
-      daily_coldwater: null,
-      daily_hotwater: null,
-      daily_heating: null,
-      last_update: null
-    };
+    this.dataReceived = false;
+    this.heatingStatus = null;
+    this.currentEnergy = null;
+    this.dailyColdwater = null;
+    this.dailyHotwater = null;
+    this.dailyHeating = null;
+    
     this.scheduleUpdates();
     this.getData();
   },
 
-  // Schedule data updates
   scheduleUpdates: function() {
-    const self = this;
+    var self = this;
     
-    // Heating status - 10s
     setInterval(function() {
       self.sendSocketNotification("GET_HEATING_STATUS", self.config);
     }, this.config.updateInterval.heating);
     
-    // Current energy - 30s
     setInterval(function() {
       self.sendSocketNotification("GET_CURRENT_ENERGY", self.config);
     }, this.config.updateInterval.energy);
     
-    // Daily water consumption - 5min
     setInterval(function() {
       self.sendSocketNotification("GET_DAILY_WATER", self.config);
     }, this.config.updateInterval.water);
     
-    // Daily heating consumption - 5min
     setInterval(function() {
       self.sendSocketNotification("GET_DAILY_HEATING", self.config);
     }, this.config.updateInterval.heating_daily);
   },
 
-  // Request initial data
   getData: function() {
     this.sendSocketNotification("GET_HEATING_STATUS", this.config);
     this.sendSocketNotification("GET_CURRENT_ENERGY", this.config);
@@ -395,177 +382,114 @@ Module.register("MMM-Utilities", {
     this.sendSocketNotification("GET_DAILY_HEATING", this.config);
   },
 
-  // Handle notifications from node_helper
   socketNotificationReceived: function(notification, payload) {
     if (notification === "HEATING_STATUS_DATA") {
-      this.data.heating_status = payload;
+      this.heatingStatus = payload;
       this.loaded = true;
-      this.updateDom(this.config.animateTransitions ? 300 : 0);
+      this.dataReceived = true;
+      this.safeUpdateDom();
     } else if (notification === "CURRENT_ENERGY_DATA") {
-      this.data.current_energy = payload;
-      this.updateDom(this.config.animateTransitions ? 300 : 0);
+      this.currentEnergy = payload;
+      this.dataReceived = true;
+      this.safeUpdateDom();
     } else if (notification === "DAILY_WATER_DATA") {
-      this.data.daily_coldwater = payload.coldwater;
-      this.data.daily_hotwater = payload.hotwater;
-      this.updateDom(this.config.animateTransitions ? 300 : 0);
+      this.dailyColdwater = payload.coldwater;
+      this.dailyHotwater = payload.hotwater;
+      this.dataReceived = true;
+      this.safeUpdateDom();
     } else if (notification === "DAILY_HEATING_DATA") {
-      this.data.daily_heating = payload;
-      this.updateDom(this.config.animateTransitions ? 300 : 0);
+      this.dailyHeating = payload;
+      this.dataReceived = true;
+      this.safeUpdateDom();
     } else if (notification === "DATA_ERROR") {
       Log.error("MMM-Utilities: " + payload);
     }
   },
 
-  // Generate DOM
-  getDom: function() {
-    const wrapper = document.createElement("div");
-    wrapper.className = "mmm-utilities";
+  safeUpdateDom: function() {
+    // Only update if module is initialized
+    if (this.data && this.data.identifier) {
+      this.updateDom(300);
+    }
+  },
 
-    if (!this.loaded) {
-      wrapper.innerHTML = "Loading utilities...";
-      wrapper.className = "dimmed light small";
+  getDom: function() {
+    var wrapper = document.createElement("div");
+    wrapper.className = "MMM-Utilities";
+    
+    if (!this.dataReceived) {
+      wrapper.innerHTML = "Loading...";
+      wrapper.className += " dimmed light small";
       return wrapper;
     }
 
-    // Header
-    const header = document.createElement("header");
-    header.className = "module-header";
-    header.innerHTML = "UTILITIES TODAY";
-    wrapper.appendChild(header);
-
-    // Content container
-    const content = document.createElement("div");
-    content.className = "utilities-content";
-
-    // Display based on style
-    if (this.config.displayStyle === "minimalist") {
-      content.appendChild(this.createMinimalistView());
-    } else if (this.config.displayStyle === "detailed") {
-      content.appendChild(this.createDetailedView());
-    } else {
-      content.appendChild(this.createCompactView());
-    }
-
-    wrapper.appendChild(content);
-    return wrapper;
-  },
-
-  // Minimalist view
-  createMinimalistView: function() {
-    const view = document.createElement("div");
-    view.className = "minimalist-view";
-
+    var table = document.createElement("table");
+    table.className = "small";
+    
     // Cold Water
-    view.appendChild(this.createMetricRow("💧", "Cold Water", 
-      this.data.daily_coldwater, this.config.units.water));
-
+    var coldRow = document.createElement("tr");
+    var coldLabel = document.createElement("td");
+    coldLabel.innerHTML = "Cold Water";
+    coldLabel.className = "align-left";
+    var coldValue = document.createElement("td");
+    coldValue.innerHTML = this.dailyColdwater !== null 
+      ? this.dailyColdwater + " " + this.config.units.water 
+      : "-";
+    coldValue.className = "align-right bright";
+    coldRow.appendChild(coldLabel);
+    coldRow.appendChild(coldValue);
+    table.appendChild(coldRow);
+    
     // Hot Water
-    view.appendChild(this.createMetricRow("🚿", "Hot Water", 
-      this.data.daily_hotwater, this.config.units.water));
-
-    // Heating with status
-    const heatingValue = this.data.daily_heating !== null 
-      ? this.formatNumber(this.data.daily_heating) + " " + this.config.units.heating
-      : "—";
-    const heatingStatus = this.data.heating_status && this.data.heating_status.status 
-      ? "[" + this.data.heating_status.status + "]" 
-      : "";
-    view.appendChild(this.createMetricRowWithStatus("🔥", "Heating", 
-      heatingValue, heatingStatus, this.data.heating_status));
-
-    // Energy
-    view.appendChild(this.createMetricRow("⚡", "Energy", 
-      this.data.current_energy, this.config.units.energy));
-
-    return view;
-  },
-
-  // Create metric row
-  createMetricRow: function(icon, label, value, unit) {
-    const row = document.createElement("div");
-    row.className = "metric-row";
-
-    const iconEl = document.createElement("span");
-    iconEl.className = "metric-icon";
-    iconEl.innerHTML = icon;
-    row.appendChild(iconEl);
-
-    const labelEl = document.createElement("span");
-    labelEl.className = "metric-label";
-    labelEl.innerHTML = label;
-    row.appendChild(labelEl);
-
-    const valueEl = document.createElement("span");
-    valueEl.className = "metric-value";
-    valueEl.innerHTML = value !== null 
-      ? this.formatNumber(value) + " " + unit 
-      : "—";
-    row.appendChild(valueEl);
-
-    return row;
-  },
-
-  // Create metric row with status
-  createMetricRowWithStatus: function(icon, label, value, status, statusData) {
-    const row = document.createElement("div");
-    row.className = "metric-row heating-row";
-
-    const iconEl = document.createElement("span");
-    iconEl.className = "metric-icon";
-    iconEl.innerHTML = icon;
-    row.appendChild(iconEl);
-
-    const labelEl = document.createElement("span");
-    labelEl.className = "metric-label";
-    labelEl.innerHTML = label;
-    row.appendChild(labelEl);
-
-    const valueEl = document.createElement("span");
-    valueEl.className = "metric-value";
-    valueEl.innerHTML = value;
-    row.appendChild(valueEl);
-
-    const statusEl = document.createElement("span");
-    statusEl.className = "metric-status " + 
-      (statusData && statusData.status === "ON" ? "status-on" : "status-off");
-    statusEl.innerHTML = status;
-    row.appendChild(statusEl);
-
-    return row;
-  },
-
-  // Detailed view
-  createDetailedView: function() {
-    const view = document.createElement("div");
-    view.className = "detailed-view";
-
-    // Add metrics with additional details
-    if (this.data.heating_status && this.data.heating_status.status === "ON") {
-      const details = document.createElement("div");
-      details.className = "heating-details";
-      details.innerHTML = `
-        Power: ${this.data.heating_status.power_display} kW | 
-        Flow: ${this.data.heating_status.flow_display} L/h | 
-        ΔT: ${this.data.heating_status.delta_t}°C
-      `;
-      view.appendChild(details);
+    var hotRow = document.createElement("tr");
+    var hotLabel = document.createElement("td");
+    hotLabel.innerHTML = "Hot Water";
+    hotLabel.className = "align-left";
+    var hotValue = document.createElement("td");
+    hotValue.innerHTML = this.dailyHotwater !== null 
+      ? this.dailyHotwater + " " + this.config.units.water 
+      : "-";
+    hotValue.className = "align-right bright";
+    hotRow.appendChild(hotLabel);
+    hotRow.appendChild(hotValue);
+    table.appendChild(hotRow);
+    
+    // Heating
+    var heatRow = document.createElement("tr");
+    var heatLabel = document.createElement("td");
+    heatLabel.innerHTML = "Heating";
+    heatLabel.className = "align-left";
+    var heatValue = document.createElement("td");
+    var heatText = this.dailyHeating !== null 
+      ? this.dailyHeating + " " + this.config.units.heating 
+      : "-";
+    var status = "";
+    if (this.heatingStatus && this.heatingStatus.status) {
+      var color = this.heatingStatus.status === "ON" ? "lime" : "red";
+      status = ' <span style="color:' + color + ';">[' + this.heatingStatus.status + ']</span>';
     }
-
-    return view;
-  },
-
-  // Compact view
-  createCompactView: function() {
-    const view = document.createElement("div");
-    view.className = "compact-view";
-    // Similar to minimalist but more condensed
-    return view;
-  },
-
-  // Format numbers with thousand separators
-  formatNumber: function(value) {
-    if (value === null || value === undefined) return "—";
-    return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    heatValue.innerHTML = heatText + status;
+    heatValue.className = "align-right bright";
+    heatRow.appendChild(heatLabel);
+    heatRow.appendChild(heatValue);
+    table.appendChild(heatRow);
+    
+    // Energy
+    var energyRow = document.createElement("tr");
+    var energyLabel = document.createElement("td");
+    energyLabel.innerHTML = "Energy";
+    energyLabel.className = "align-left";
+    var energyValue = document.createElement("td");
+    energyValue.innerHTML = this.currentEnergy !== null 
+      ? this.currentEnergy + " " + this.config.units.energy 
+      : "-";
+    energyValue.className = "align-right bright";
+    energyRow.appendChild(energyLabel);
+    energyRow.appendChild(energyValue);
+    table.appendChild(energyRow);
+    
+    wrapper.appendChild(table);
+    return wrapper;
   }
 });
 ```
@@ -1284,13 +1208,272 @@ This module provides:
 
 ### Useful Commands
 ```bash
-# Restart MagicMirror
-pm2 restart MagicMirror
+# Restart MagicMirror (use correct process name)
+pm2 restart mm
+
+# Or use ID
+pm2 restart 0
+
+# Stop MagicMirror
+pm2 stop mm
+
+# View status
+pm2 status
 
 # Test Splunk connectivity
 curl -k -H "Authorization: Bearer TOKEN" https://splunk:8089/services/auth/login
 
 # View module logs
-tail -f ~/.pm2/logs/MagicMirror-out.log
+pm2 logs mm
 ```
+
+---
+
+## 5. Production Deployment & Troubleshooting
+
+### 5.1 Production Deployment Checklist
+
+**✅ Completed Steps:**
+1. Created Splunk saved searches with optimized queries
+2. Created dedicated Splunk user (`magicmirror_utilities`) with token authentication
+3. Configured role with appropriate capabilities and search concurrency limits
+4. Developed MagicMirror module with safe DOM handling
+5. Tested data retrieval and display
+6. Configured module in MagicMirror config.js
+
+**📋 Deployment Configuration:**
+
+**config.js placement:**
+```javascript
+{
+  module: "MMM-Utilities",
+  position: "bottom_right",  // or any valid position
+  config: {
+    splunkHost: "https://172.16.234.47:8089",
+    splunkToken: "YOUR_TOKEN_HERE",
+    displayStyle: "minimalist",
+    savedSearches: {
+      heating: "utilities_heating_status",
+      hotwater: "utilities_hotwater_daily",
+      coldwater: "utilities_coldwater_daily",
+      energy: "utilities_energy_daily",
+      stats: "utilities_combined_stats"
+    }
+  }
+}
+```
+
+**⚠️ Important:** Make sure the module configuration is a **sibling** to other modules in the `modules` array, not nested inside another module's configuration!
+
+### 5.2 Common Issues & Solutions
+
+#### Issue 1: Module Not Visible
+
+**Symptoms:**
+- Module doesn't appear on MagicMirror
+- No error messages in terminal
+- Backend loads but frontend doesn't
+
+**Solution:**
+Check browser console (`Ctrl+Shift+I` or `F12`):
+- Look for JavaScript errors
+- Verify module is being loaded
+- Check for `getElementsByClassName` errors
+
+**Fix:** Use the corrected code provided in this document which uses MagicMirror's standard table structure.
+
+#### Issue 2: Splunk Concurrency Limit
+
+**Symptoms:**
+```
+Search not executed: role-based concurrency limit... has been reached (usage=10, quota=10)
+```
+
+**Solution:**
+Increase the `srchJobsQuota` for your role:
+
+```bash
+# Edit role configuration
+sudo -u splunk vi /opt/splunk/etc/apps/mdgi/local/authorize.conf
+
+# Find your role and increase quota
+[role_c57_app_magicmirror_readonly]
+srchJobsQuota = 30  # Increase from 10 to 30
+srchMaxTime = 5m
+
+# Restart Splunk
+sudo /opt/splunk/bin/splunk restart
+```
+
+#### Issue 3: Character Encoding Issues
+
+**Symptoms:**
+```
+return "M-bM-^@M-^T";  # Corrupted em-dash character
+```
+
+**Solution:**
+The em-dash character (—) can get corrupted during copy/paste. Use simple dashes (-) instead or verify file encoding is UTF-8.
+
+#### Issue 4: Module Configuration in Wrong Place
+
+**Symptoms:**
+- Module loads in backend but not in frontend
+- No errors but module doesn't display
+
+**Solution:**
+Verify your `config.js` structure. The module should be at the same level as other modules:
+
+```javascript
+modules: [
+  { module: "clock", ... },
+  { module: "calendar", ... },
+  { module: "MMM-Utilities", ... }  // ← Correct position
+]
+```
+
+**NOT** inside another module's `values` or `config` array!
+
+#### Issue 5: PM2 Process Name
+
+**Symptoms:**
+```
+pm2 restart mm.sh --update-env
+[PM2][ERROR] Process mm.sh not found
+```
+
+**Solution:**
+Use the actual process name as shown in `pm2 status`:
+```bash
+pm2 restart mm
+```
+
+### 5.3 Verification Steps
+
+**1. Check Module Files:**
+```bash
+ls -lh ~/MagicMirror/modules/MMM-Utilities/
+# Should see: MMM-Utilities.js, node_helper.js, MMM-Utilities.css, package.json
+```
+
+**2. Verify Node.js Compatibility:**
+```bash
+# Check for syntax errors (Module is not defined is normal)
+node ~/MagicMirror/modules/MMM-Utilities/MMM-Utilities.js
+```
+
+**3. Test Splunk Connection:**
+```bash
+curl -k \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  "https://YOUR_SPLUNK:8089/services/search/jobs/export" \
+  -d "search=| savedsearch utilities_heating_status" \
+  -d "output_mode=json"
+```
+
+**4. Check Browser Console:**
+- Open MagicMirror in browser: `http://PI_IP:8080`
+- Press `F12` or `Ctrl+Shift+I`
+- Check Console tab for errors or module messages
+
+### 5.4 Performance Considerations
+
+**Update Intervals:**
+- **Heating Status**: 10 seconds (near real-time for valve status)
+- **Energy**: 30 seconds (current power usage)
+- **Water/Heating Daily**: 5 minutes (cumulative totals)
+
+**Splunk Search Concurrency:**
+- Recommended `srchJobsQuota`: 20-30
+- Monitor with: `| rest /services/search/jobs | search owner=magicmirror_utilities`
+
+**Network Considerations:**
+- Module uses HTTPS to Splunk (HAProxy load balancer)
+- Self-signed certificates: `rejectUnauthorized: false` in node_helper.js
+- Consider implementing proper certificate verification in production
+
+### 5.5 Security Best Practices
+
+**✅ Implemented:**
+- Token-based authentication (no passwords in code)
+- Read-only Splunk role with minimal permissions
+- Time-based search restrictions (5 minutes)
+- Saved searches instead of ad-hoc queries
+
+**🔒 Additional Recommendations:**
+1. Use valid SSL certificates (not self-signed)
+2. Restrict Splunk API access by IP
+3. Rotate tokens periodically
+4. Monitor Splunk audit logs for API access
+
+### 5.6 Monitoring & Maintenance
+
+**Check Module Health:**
+```bash
+# View real-time logs
+pm2 logs mm
+
+# Check MagicMirror status
+pm2 status
+
+# Restart if needed
+pm2 restart mm
+```
+
+**Splunk Saved Search Health:**
+```splunk
+index=_audit action=search_*
+| search user=magicmirror_utilities
+| stats count by search_id, status
+| sort -count
+```
+
+**Data Flow Verification:**
+```splunk
+index=utilities
+| stats latest(_time) as last_event by sourcetype
+| eval age=now()-last_event
+| eval age_display=tostring(age, "duration")
+| table sourcetype, age_display
+```
+
+### 5.7 Known Limitations
+
+1. **Older Node.js Compatibility**: Uses `var` instead of `const/let` for Node.js v6/v7
+2. **URL Parsing**: Uses legacy `url.parse()` instead of `new URL()` for compatibility
+3. **No Error Recovery**: Module doesn't retry failed API calls (relies on scheduled intervals)
+4. **Single Language**: Currently only supports English labels
+
+### 5.8 Future Enhancements
+
+**Potential Improvements:**
+- [ ] Add configurable language support
+- [ ] Implement exponential backoff for failed requests
+- [ ] Add graphs/sparklines for trends
+- [ ] Add alerts for abnormal consumption
+- [ ] Implement data caching to reduce Splunk load
+- [ ] Add multiple display styles (detailed, compact)
+
+---
+
+## 6. Production Status
+
+**✅ Module is Production-Ready and Deployed**
+
+**Current Configuration:**
+- **Raspberry Pi**: MagicMirror v2.1.1
+- **Splunk**: 8.2.4 with HAProxy load balancer
+- **Position**: bottom_right
+- **Display Style**: minimalist
+- **Update Intervals**: 10s (heating), 30s (energy), 5min (daily totals)
+
+**Displaying:**
+- Cold Water daily consumption (L)
+- Hot Water daily consumption (L)
+- Heating daily consumption (kWh) with ON/OFF status
+- Current Energy usage (W)
+
+**Last Updated:** January 26, 2026
+
+---
 
