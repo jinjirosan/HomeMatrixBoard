@@ -1,0 +1,673 @@
+<form version="1.1">
+  <label>🏠 Utilities Monitoring - Overview Dashboard</label>
+  <description>Comprehensive monitoring of Heating, Hot Water, Cold Water, and Energy systems</description>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time_token">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="refresh_token">
+      <label>Auto Refresh</label>
+      <choice value="30s">30 seconds</choice>
+      <choice value="1m">1 minute</choice>
+      <choice value="5m">5 minutes</choice>
+      <choice value="0">None</choice>
+      <default>1m</default>
+    </input>
+  </fieldset>
+  
+  <!-- Row 1: Current Readings for All Utilities -->
+  <row>
+    <panel>
+      <title>🔥 Heating System</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating volume=*
+| stats latest(volume) as volume_m3, latest(power) as power_kw, latest(temp1) as temp1
+| eval display_value=round(volume_m3, 2)
+| fields display_value, power_kw, temp1</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[10,20,30]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">VOLUME (m³)</option>
+        <option name="unit">m³</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>💧 Hot Water</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:hotwater volume=*
+| stats latest(volume) as volume_m3, latest(power) as power_kw, latest(temp1) as temp1
+| eval display_value=round(volume_m3, 2)
+| fields display_value, power_kw, temp1</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[8,15,25]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">VOLUME (m³)</option>
+        <option name="unit">m³</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>🚰 Cold Water</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
+| stats latest(current_value) as total_pulses
+| eval liters=total_pulses
+| eval display_value=round(liters / 1000, 2)
+| fields display_value</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[400,500,600]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">TOTAL (m³)</option>
+        <option name="unit">m³</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>⚡ Energy Monitor</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=emonpi:energy power=*
+| stats latest(power) as power_kw
+| eval display_value=round(power_kw, 2)
+| fields display_value</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[1,3,5]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">POWER (kW)</option>
+        <option name="unit">kW</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <!-- Row 2: System Health Overview -->
+  <row>
+    <panel>
+      <title>System Health Overview</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype IN (kamstrup:*, elster:*)
+| eval utility=case(
+    sourcetype=="kamstrup:heating", "🔥 Heating",
+    sourcetype=="kamstrup:hotwater", "💧 Hot Water",
+    sourcetype=="elster:coldwater", "🚰 Cold Water",
+    sourcetype=="emonpi:energy", "⚡ Energy",
+    1=1, "Unknown"
+  )
+| stats 
+    count as message_count,
+    latest(_time) as last_seen,
+    latest(wifi_rssi) as signal_dbm,
+    latest(running_firmware_version) as firmware
+    by utility
+| eval time_since=now() - last_seen
+| eval status=case(
+    time_since &lt; 120, "🟢 ONLINE",
+    time_since &lt; 600, "🟡 DELAYED",
+    1=1, "🔴 OFFLINE"
+  )
+| eval signal_quality=case(
+    signal_dbm &gt; -50, "Excellent",
+    signal_dbm &gt; -60, "Good",
+    signal_dbm &gt; -70, "Fair",
+    1=1, "Poor"
+  )
+| eval last_seen_friendly=strftime(last_seen, "%H:%M:%S")
+| table utility, status, message_count, last_seen_friendly, signal_dbm, signal_quality, firmware
+| sort utility</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">10</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="status">
+          <colorPalette type="map">{"🟢 ONLINE": #65A637, "🟡 DELAYED": #F7BC38, "🔴 OFFLINE": #D93F3C}</colorPalette>
+        </format>
+        <format type="color" field="signal_quality">
+          <colorPalette type="map">{"Excellent": #65A637, "Good": #6DB7C6, "Fair": #F7BC38, "Poor": #D93F3C}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+  
+  <!-- Row 3: 24-Hour Usage Trends (Multi-line Chart) -->
+  <row>
+    <panel>
+      <title>📈 24-Hour Usage Trends (All Utilities)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype IN (kamstrup:hotwater, elster:coldwater, kamstrup:heating)
+| eval utility=case(
+    sourcetype=="kamstrup:hotwater", "Hot Water",
+    sourcetype=="elster:coldwater", "Cold Water",
+    sourcetype=="kamstrup:heating", "Heating",
+    1=1, "Unknown"
+  )
+| eval usage_value=coalesce(volume, current_value, pulse_count)
+| timechart span=1h latest(usage_value) as reading by utility</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Reading</option>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="charting.fieldColors">{"Heating": 0xFF5722, "Hot Water": 0x2196F3, "Cold Water": 0x00BCD4}</option>
+        <option name="charting.areaFillOpacity">0.5</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 4: Flow Rate and Power Monitoring -->
+  <row>
+    <panel>
+      <title>💨 Real-Time Flow Rates (L/h)</title>
+      <chart>
+        <search>
+          <query>index=utilities (flow=* OR water_used_last_minute=*)
+| eval flow_lph=case(
+    isnotnull(flow), flow,
+    isnotnull(water_used_last_minute), water_used_last_minute * 60,
+    1=1, 0
+  )
+| eval utility=case(
+    sourcetype=="kamstrup:hotwater", "Hot Water",
+    sourcetype=="elster:coldwater", "Cold Water",
+    sourcetype=="kamstrup:heating", "Heating",
+    1=1, "Unknown"
+  )
+| timechart span=10m avg(flow_lph) as avg_flow by utility</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Flow Rate (L/h)</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">3</option>
+        <option name="charting.fieldColors">{"Hot Water": 0xFF9800, "Cold Water": 0x03A9F4, "Heating": 0xF44336}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>⚡ Power Consumption (kW)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype IN (kamstrup:*) power=*
+| eval utility=case(
+    sourcetype=="kamstrup:hotwater", "Hot Water",
+    sourcetype=="kamstrup:heating", "Heating",
+    1=1, "Unknown"
+  )
+| timechart span=10m avg(power) as avg_power by utility</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Power (kW)</option>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="charting.fieldColors">{"Hot Water": 0xFFC107, "Heating": 0xFF5722}</option>
+        <option name="charting.areaFillOpacity">0.4</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 5: Temperature Monitoring -->
+  <row>
+    <panel>
+      <title>🌡️ Temperature Monitoring (Kamstrup Systems)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype IN (kamstrup:*) (temp1=* OR temp2=*)
+| eval utility=case(
+    sourcetype=="kamstrup:heating", "Heating",
+    sourcetype=="kamstrup:hotwater", "Hot Water",
+    1=1, "Unknown"
+  )
+| eval temp_type_supply=utility + " Supply"
+| eval temp_type_return=utility + " Return"
+| eval temps=mvappend(temp_type_supply + "=" + tostring(temp1), temp_type_return + "=" + tostring(temp2))
+| mvexpand temps
+| rex field=temps "(?&lt;temp_label&gt;.+)=(?&lt;temp_value&gt;.+)"
+| timechart span=15m avg(eval(tonumber(temp_value))) as avg_temp by temp_label</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Temperature (°C)</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="charting.fieldColors">{"Heating Supply": 0xE91E63, "Heating Return": 0x9C27B0, "Hot Water Supply": 0xFF9800, "Hot Water Return": 0xFF5722}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 6: Daily Consumption Comparison -->
+  <row>
+    <panel>
+      <title>📊 Daily Consumption Comparison (Last 7 Days)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype IN (kamstrup:*, elster:*)
+    earliest=-7d latest=now
+| eval utility=case(
+    sourcetype=="kamstrup:heating", "Heating",
+    sourcetype=="kamstrup:hotwater", "Hot Water",
+    sourcetype=="elster:coldwater", "Cold Water",
+    1=1, "Other"
+  )
+| eval usage_metric=coalesce(volume, current_value, pulse_count)
+| bucket _time span=1d
+| stats latest(usage_metric) as daily_reading by _time, utility
+| eval date=strftime(_time, "%m/%d")
+| chart latest(daily_reading) as reading over date by utility</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Date</option>
+        <option name="charting.axisTitleY.text">Daily Reading</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.fieldColors">{"Heating": 0xF44336, "Hot Water": 0x2196F3, "Cold Water": 0x00BCD4}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 7: Cost Estimation -->
+  <row>
+    <panel>
+      <title>💰 Estimated Daily Costs (Last 7 Days)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype IN (kamstrup:*, elster:*)
+    earliest=-7d latest=now
+| eval utility=case(
+    sourcetype=="kamstrup:heating", "Heating",
+    sourcetype=="kamstrup:hotwater", "Hot Water",
+    sourcetype=="elster:coldwater", "Cold Water",
+    1=1, "Other"
+  )
+| eval usage=coalesce(heat_energy, volume, current_value, pulse_count, power)
+| eval estimated_cost=case(
+    utility=="Heating" AND isnotnull(heat_energy), heat_energy * 100,
+    utility=="Hot Water" AND isnotnull(volume), volume * 0.08,
+    utility=="Cold Water" AND isnotnull(current_value), current_value * 0.000005,
+    1=1, 0
+  )
+| timechart span=1d sum(estimated_cost) as daily_cost by utility</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Date</option>
+        <option name="charting.axisTitleY.text">Cost ($)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">minmax</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.fieldColors">{"Heating": 0x4CAF50, "Hot Water": 0x2196F3, "Cold Water": 0x00BCD4}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>💵 Total Estimated Cost (Last 30 Days)</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype IN (kamstrup:*, elster:*)
+    earliest=-30d latest=now
+| eval utility=case(
+    sourcetype=="kamstrup:heating", "Heating",
+    sourcetype=="kamstrup:hotwater", "Hot Water",
+    sourcetype=="elster:coldwater", "Cold Water",
+    1=1, "Other"
+  )
+| eval usage=coalesce(heat_energy, volume, current_value, pulse_count)
+| eval estimated_cost=case(
+    utility=="Heating" AND isnotnull(heat_energy), heat_energy * 100,
+    utility=="Hot Water" AND isnotnull(volume), volume * 0.08,
+    utility=="Cold Water" AND isnotnull(current_value), current_value * 0.000005,
+    1=1, 0
+  )
+| stats sum(estimated_cost) as total_cost
+| eval total_cost=round(total_cost, 2)</query>
+          <earliest>-30d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[50,100,150,200]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">30-DAY TOTAL</option>
+        <option name="unit">$</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <!-- Row 8: Anomaly Detection -->
+  <row>
+    <panel>
+      <title>⚠️ Anomaly Detection - High Flow/Power Alerts</title>
+      <table>
+        <search>
+          <query>index=utilities (flow=* OR water_used_last_minute=* OR power=*)
+| eval flow_metric=case(
+    isnotnull(flow), flow,
+    isnotnull(water_used_last_minute), water_used_last_minute * 60,
+    isnotnull(power), power * 100,
+    1=1, 0
+  )
+| eval utility=case(
+    sourcetype=="kamstrup:hotwater", "💧 Hot Water",
+    sourcetype=="elster:coldwater", "🚰 Cold Water",
+    sourcetype=="kamstrup:heating", "🔥 Heating",
+    1=1, mqtt_topic
+  )
+| stats 
+    avg(flow_metric) as avg_flow,
+    max(flow_metric) as max_flow,
+    stdev(flow_metric) as stdev_flow,
+    count as sample_count
+    by utility
+| eval threshold=avg_flow + (2 * stdev_flow)
+| eval alert_level=case(
+    max_flow &gt; threshold, "⚠️ HIGH",
+    max_flow &gt; (threshold * 0.75), "⚡ ELEVATED",
+    1=1, "✅ NORMAL"
+  )
+| table utility, avg_flow, max_flow, threshold, alert_level, sample_count
+| eval avg_flow=round(avg_flow, 1), max_flow=round(max_flow, 1), threshold=round(threshold, 1)
+| sort - max_flow</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>1m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">10</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="alert_level">
+          <colorPalette type="map">{"✅ NORMAL": #65A637, "⚡ ELEVATED": #F7BC38, "⚠️ HIGH": #D93F3C}</colorPalette>
+        </format>
+        <format type="number" field="avg_flow">
+          <option name="precision">1</option>
+        </format>
+        <format type="number" field="max_flow">
+          <option name="precision">1</option>
+        </format>
+        <format type="number" field="threshold">
+          <option name="precision">1</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+  
+  <!-- Row 9: Leak Detection Summary -->
+  <row>
+    <panel>
+      <title>🚨 Leak Detection Status (All Systems)</title>
+      <table>
+        <search>
+          <query>index=utilities (leak_burst=* OR leak_detect=*)
+| eval utility=case(
+    sourcetype=="kamstrup:heating", "🔥 Heating",
+    sourcetype=="kamstrup:hotwater", "💧 Hot Water",
+    sourcetype=="elster:coldwater", "🚰 Cold Water",
+    1=1, "Unknown"
+  )
+| eval leak_value=coalesce(leak_burst, leak_detect)
+| eval leak_type=case(
+    isnotnull(leak_burst), "Burst/Leak",
+    isnotnull(leak_detect), "Flow Anomaly",
+    1=1, "Unknown"
+  )
+| stats 
+    latest(leak_value) as current_status,
+    count(eval(leak_value=1)) as total_leak_events,
+    latest(_time) as last_check
+    by utility, leak_type
+| eval status=case(
+    current_status=0, "✅ NO LEAK",
+    current_status=1, "🔴 LEAK DETECTED",
+    1=1, "❓ UNKNOWN"
+  )
+| eval last_check_time=strftime(last_check, "%Y-%m-%d %H:%M")
+| table utility, leak_type, status, total_leak_events, last_check_time
+| sort utility</query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">10</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="status">
+          <colorPalette type="map">{"✅ NO LEAK": #65A637, "🔴 LEAK DETECTED": #D93F3C, "❓ UNKNOWN": #6DB7C6}</colorPalette>
+        </format>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>📊 System Event Summary (Last Hour)</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype IN (kamstrup:*, elster:*)
+| eval utility=case(
+    sourcetype=="kamstrup:heating", "🔥 Heating",
+    sourcetype=="kamstrup:hotwater", "💧 Hot Water",
+    sourcetype=="elster:coldwater", "🚰 Cold Water",
+    1=1, "⚡ Energy"
+  )
+| stats 
+    count as total_events,
+    dc(mqtt_topic) as unique_topics,
+    earliest(_time) as first_event,
+    latest(_time) as last_event
+    by utility
+| eval data_rate=round(total_events / 60, 1)
+| eval first_event_time=strftime(first_event, "%H:%M:%S")
+| eval last_event_time=strftime(last_event, "%H:%M:%S")
+| table utility, total_events, data_rate, unique_topics, first_event_time, last_event_time
+| sort - total_events</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">10</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="number" field="total_events">
+          <option name="precision">0</option>
+        </format>
+        <format type="number" field="data_rate">
+          <option name="precision">1</option>
+          <option name="unit">events/min</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+  
+  <!-- Row 10: Efficiency Metrics -->
+  <row>
+    <panel>
+      <title>⭐ Heating Efficiency (Energy per Volume)</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating (heat_energy=* OR volume=*)
+| stats 
+    latest(heat_energy) as energy_mwh,
+    latest(volume) as volume_m3
+| eval efficiency=if(volume_m3 &gt; 0, (energy_mwh * 1000) / volume_m3, 0)
+| eval efficiency=round(efficiency, 2)
+| fields efficiency</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[20,40,60]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">kWh per m³</option>
+        <option name="unit">kWh/m³</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>📈 Data Ingestion Rate</title>
+      <single>
+        <search>
+          <query>index=utilities earliest=-1h
+| stats count as events_last_hour
+| eval events_per_minute=round(events_last_hour / 60, 1)
+| fields events_per_minute</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x65A637"]</option>
+        <option name="rangeValues">[5,10]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">EVENTS PER MINUTE</option>
+        <option name="unit">evt/min</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>🔌 Active Gateways</title>
+      <single>
+        <search>
+          <query>index=utilities earliest=-15m 
+| stats dc(source) as gateway_count
+| fields gateway_count</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x6DB7C6","0x65A637"]</option>
+        <option name="rangeValues">[1,2,3]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">GATEWAYS ONLINE</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>📡 Average Signal Strength</title>
+      <single>
+        <search>
+          <query>index=utilities wifi_rssi=*
+| stats avg(wifi_rssi) as avg_signal
+| eval avg_signal=round(avg_signal, 0)
+| fields avg_signal</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x6DB7C6","0x65A637"]</option>
+        <option name="rangeValues">[-70,-60,-50]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">WIFI SIGNAL (dBm)</option>
+        <option name="unit">dBm</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+</form>
+
