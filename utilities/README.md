@@ -16,11 +16,34 @@ This directory contains the MQTT-to-Splunk integration for utilities monitoring 
 
 ## Contents
 
+### Core Components
 - **`mqtt_to_splunk.py`** - Main Python script that subscribes to MQTT and forwards to Splunk HEC
 - **`splunk_credentials.py.template`** - Configuration template (copy to `splunk_credentials.py`)
 - **`mqtt-to-splunk.service`** - Systemd service file for running as daemon
+
+### Documentation
 - **`mqtt_topic_utilities.md`** - Complete documentation for MQTT integration
 - **`SPLUNK_SETUP.md`** - Splunk configuration guide
+- **`HAPROXY_SETUP.md`** - HAProxy high availability setup for Splunk HEC
+- **`DEPLOYMENT_GUIDE.md`** - Step-by-step deployment checklist
+- **`CHANGELOG.md`** - Complete project history and architectural decisions
+
+### Dashboards
+- **`SPLUNK_DASHBOARDS.md`** - General utilities dashboard queries
+- **`SPLUNK_COLDWATER_DASHBOARD.md`** - Cold water monitoring dashboards
+- **`SPLUNK_HOTWATER_DASHBOARD.md`** - Hot water monitoring dashboards
+- **`SPLUNK_HEATING_DASHBOARD.md`** - Heating system monitoring dashboards
+- **`utilities_overview_dashboard.xml`** - Main overview dashboard (Simple XML)
+- **`utilities_coldwater_dashboard.xml`** - Cold water detail dashboard (Simple XML)
+- **`utilities_hotwater_dashboard.xml`** - Hot water detail dashboard (Simple XML)
+- **`utilities_heating_dashboard.xml`** - Heating detail dashboard (Simple XML)
+
+### Integration Guides
+- **`MDGI_APP_INTEGRATION.md`** - Integrating dashboards into MDGi Splunk app
+- **`QUICK_DEPLOYMENT.md`** - 5-minute deployment checklist for dashboards
+- **`OVERVIEW_DASHBOARD_INSTALLATION.md`** - Installing the overview dashboard
+- **`mdgi_navigation_default.xml`** - Navigation menu configuration for MDGi app
+- **`MAGICMIRROR_MODULE.md`** - MagicMirror² module for displaying utilities on smart mirror
 
 ## Quick Start
 
