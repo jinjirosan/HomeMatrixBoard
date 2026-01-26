@@ -78,43 +78,22 @@
     </panel>
     
     <panel>
-      <title>📟 Meter Reading (Meterstand) - Black Digits</title>
-      <single>
-        <search>
-          <query>index=utilities sourcetype=elster:coldwater current_value=*
-| stats latest(current_value) as meter_reading
-| eval meter_thousands=floor(meter_reading / 1000)
-| fields meter_thousands</query>
-          <earliest>-5m</earliest>
-          <latest>now</latest>
-          <refresh>$refresh_token$</refresh>
-          <refreshType>delay</refreshType>
-        </search>
-        <option name="drilldown">none</option>
-        <option name="numberPrecision">0</option>
-        <option name="rangeColors">["0x000000"]</option>
-        <option name="rangeValues">[]</option>
-        <option name="refresh.display">progressbar</option>
-        <option name="underLabel">THOUSANDS (BLACK DIGITS)</option>
-        <option name="useColors">1</option>
-        <option name="useThousandSeparators">0</option>
-      </single>
-    </panel>
-    
-    <panel>
-      <title>📟 Meter Reading (Meterstand) - Red Digits</title>
+      <title>📟 Meter Reading (Meterstand)</title>
       <table>
         <search>
           <query>index=utilities sourcetype=elster:coldwater current_value=*
 | stats latest(current_value) as meter_reading
+| eval meter_thousands=floor(meter_reading / 1000)
 | eval meter_ones=meter_reading % 1000
 | eval meter_ones_formatted=case(
     meter_ones &lt; 10, "00" + tostring(meter_ones),
     meter_ones &lt; 100, "0" + tostring(meter_ones),
     1=1, tostring(meter_ones)
   )
-| table meter_ones_formatted
-| rename meter_ones_formatted as "Red Digits"</query>
+| eval "Black Digits"=meter_thousands
+| eval "Red Digits"=meter_ones_formatted
+| eval "Total Liters"=tostring(meter_reading)
+| table "Black Digits", "Red Digits", "Total Liters"</query>
           <earliest>-5m</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
@@ -124,8 +103,14 @@
         <option name="drilldown">none</option>
         <option name="refresh.display">progressbar</option>
         <option name="rowNumbers">false</option>
+        <format type="color" field="Black Digits">
+          <colorPalette type="list">[#000000]</colorPalette>
+        </format>
         <format type="color" field="Red Digits">
           <colorPalette type="list">[#D93F3C]</colorPalette>
+        </format>
+        <format type="number" field="Black Digits">
+          <option name="precision">0</option>
         </format>
       </table>
     </panel>
