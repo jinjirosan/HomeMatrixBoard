@@ -34,14 +34,17 @@
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
         </search>
-        <option name="drilldown">none</option>
+        <option name="drilldown">all</option>
         <option name="numberPrecision">0.01</option>
         <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
         <option name="rangeValues">[10,20,30]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">VOLUME (m³)</option>
+        <option name="underLabel">VOLUME (m³) - Click for Details</option>
         <option name="unit">m³</option>
         <option name="useColors">1</option>
+        <drilldown>
+          <link target="_blank">/app/MDGi/heating_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
+        </drilldown>
       </single>
     </panel>
     
@@ -58,14 +61,17 @@
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
         </search>
-        <option name="drilldown">none</option>
+        <option name="drilldown">all</option>
         <option name="numberPrecision">0.01</option>
         <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
         <option name="rangeValues">[8,15,25]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">VOLUME (m³)</option>
+        <option name="underLabel">VOLUME (m³) - Click for Details</option>
         <option name="unit">m³</option>
         <option name="useColors">1</option>
+        <drilldown>
+          <link target="_blank">/app/MDGi/hotwater_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
+        </drilldown>
       </single>
     </panel>
     
@@ -83,14 +89,17 @@
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
         </search>
-        <option name="drilldown">none</option>
+        <option name="drilldown">all</option>
         <option name="numberPrecision">0.01</option>
         <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
         <option name="rangeValues">[400,500,600]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">TOTAL (m³)</option>
+        <option name="underLabel">TOTAL (m³) - Click for Details</option>
         <option name="unit">m³</option>
         <option name="useColors">1</option>
+        <drilldown>
+          <link target="_blank">/app/MDGi/coldwater_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
+        </drilldown>
       </single>
     </panel>
     

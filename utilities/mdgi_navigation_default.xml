@@ -1,0 +1,36 @@
+<nav search_view="search" color="#dd6600">
+  <view name="search"/>
+  <view name="reports"/>
+  <view name="overall_status" default='true'/>
+  <view name="environment"/>
+  <view name="power_grid"/>
+  <view name="nodes"/>
+  <view name="storage"/>
+  <view name="firewalls"/>
+  <view name="steppingstones"/>
+  <view name="splunk_ops"/>
+  <view name="wifi"/>
+  
+  <!-- New Utilities Monitoring Collection -->
+  <collection label="Utilities">
+    <view name="utilities_overview_dashboard" />
+    <view name="heating_dashboard" />
+    <view name="hotwater_dashboard" />
+    <view name="coldwater_dashboard" />
+  </collection>
+  
+  <collection label="Splunk Health">
+    <a href="http://splunkds.flinkerbusch.intranet:8000/splunkds/en-US/app/splunk_monitoring_console/monitoringconsole_overview">Overview</a>
+    <a href="http://splunkds.flinkerbusch.intranet:8000/splunkds/en-US/app/splunk_monitoring_console/resource_usage_deployment">Resource Usage</a>
+    <a href="http://splunkds.flinkerbusch.intranet:8000/splunkds/en-US/app/splunk_monitoring_console/indexing_performance_deployment">Indexing performance</a>
+    <a href="http://splunkds.flinkerbusch.intranet:8000/splunkds/en-US/app/splunk_monitoring_console/license_usage_30days">License Usage</a>
+  </collection>
+  
+  <collection label="Splunk">  
+    <view name="datasets" />
+    <view name="alerts" />
+    <view name="dashboards" />
+    <view name="analysis_workspace" />
+  </collection>
+</nav>
+
