@@ -362,9 +362,13 @@ sudo systemctl status mqtt-to-splunk
 - [HAPROXY_SETUP.md](HAPROXY_SETUP.md) - HAProxy load balancer configuration
 - [SPLUNK_SETUP.md](SPLUNK_SETUP.md) - Splunk HEC and index configuration
 - [SPLUNK_DASHBOARDS.md](SPLUNK_DASHBOARDS.md) - SPL queries and dashboard layouts (all utilities)
-- [SPLUNK_COLDWATER_DASHBOARD.md](SPLUNK_COLDWATER_DASHBOARD.md) - Dedicated cold water monitoring dashboard
+- [SPLUNK_COLDWATER_DASHBOARD.md](SPLUNK_COLDWATER_DASHBOARD.md) - Cold water monitoring queries and insights
+- [SPLUNK_HOTWATER_DASHBOARD.md](SPLUNK_HOTWATER_DASHBOARD.md) - Hot water monitoring queries and insights
+- [SPLUNK_HEATING_DASHBOARD.md](SPLUNK_HEATING_DASHBOARD.md) - Heating system monitoring queries and insights
 - [utilities_overview_dashboard.xml](utilities_overview_dashboard.xml) - **Overview dashboard XML** (all 4 utilities)
 - [coldwater_dashboard.xml](coldwater_dashboard.xml) - **Cold water dashboard XML** (detailed monitoring)
+- [hotwater_dashboard.xml](hotwater_dashboard.xml) - **Hot water dashboard XML** (detailed monitoring)
+- [heating_dashboard.xml](heating_dashboard.xml) - **Heating dashboard XML** (detailed monitoring)
 - [OVERVIEW_DASHBOARD_INSTALLATION.md](OVERVIEW_DASHBOARD_INSTALLATION.md) - Overview dashboard setup guide
 - [mqtt_topic_utilities.md](mqtt_topic_utilities.md) - Complete MQTT integration guide
 - [../documentation/mqtt_broker_setup.md](../documentation/mqtt_broker_setup.md) - MQTT broker configuration

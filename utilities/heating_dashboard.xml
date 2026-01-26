@@ -1,0 +1,652 @@
+<form version="1.1">
+  <label>🔥 Heating System Monitoring Dashboard</label>
+  <description>Real-time monitoring of Kamstrup heating system - Energy, Temperature, Flow, and Efficiency</description>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time_token">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="refresh_token">
+      <label>Auto Refresh</label>
+      <choice value="30s">30 seconds</choice>
+      <choice value="1m">1 minute</choice>
+      <choice value="5m">5 minutes</choice>
+      <choice value="0">None</choice>
+      <default>1m</default>
+    </input>
+  </fieldset>
+  
+  <!-- Row 1: Key Metrics -->
+  <row>
+    <panel>
+      <title>Today's Heat Energy</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating heat_energy=*
+| bucket _time span=1d
+| stats 
+    earliest(heat_energy) as start_energy,
+    latest(heat_energy) as end_energy
+| eval consumption_kwh = (end_energy - start_energy) * 1000
+| eval consumption_kwh = round(consumption_kwh, 1)
+| fields consumption_kwh</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[50,100,200,300]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">kWh TODAY</option>
+        <option name="unit">kWh</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Current Power</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating power=*
+| stats latest(power) as current_power
+| eval current_power = round(current_power, 2)
+| fields current_power</query>
+          <earliest>-5m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x6DB7C6","0x65A637","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[1,5,10,15]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">POWER (kW)</option>
+        <option name="unit">kW</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Supply Temperature</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating temp1=*
+| stats latest(temp1) as supply_temp
+| eval supply_temp = round(supply_temp, 1)
+| fields supply_temp</query>
+          <earliest>-5m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x65A637","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[40,60,75,85]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">SUPPLY (°C)</option>
+        <option name="unit">°C</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Temperature Differential (ΔT)</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating (temp1=* AND temp2=*)
+| eval delta_t = temp1 - temp2
+| stats latest(delta_t) as current_delta
+| eval current_delta = round(current_delta, 1)
+| fields current_delta</query>
+          <earliest>-5m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x6DB7C6","0x65A637"]</option>
+        <option name="rangeValues">[8,12,15]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">ΔT (°C) - Higher is Better</option>
+        <option name="unit">°C</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <!-- Row 2: Power Timeline -->
+  <row>
+    <panel>
+      <title>⚡ Thermal Power Output Timeline (Last 24 Hours)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating power=*
+| timechart span=10m avg(power) as avg_power_kw
+| eval avg_power_kw = round(avg_power_kw, 2)</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Power (kW)</option>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"avg_power_kw": 0xFF5722}</option>
+        <option name="charting.areaFillOpacity">0.5</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 3: Temperature Monitoring -->
+  <row>
+    <panel>
+      <title>🌡️ Supply vs Return Temperature (System ΔT Visualization)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating (temp1=* OR temp2=*)
+| timechart span=10m 
+    avg(temp1) as "Supply (Flow)",
+    avg(temp2) as "Return"
+| eval "Supply (Flow)" = round('Supply (Flow)', 1)
+| eval "Return" = round('Return', 1)</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Temperature (°C)</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">3</option>
+        <option name="charting.fieldColors">{"Supply (Flow)": 0xE91E63, "Return": 0x2196F3}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 4: Flow Rate and ΔT Timeline -->
+  <row>
+    <panel>
+      <title>💧 Flow Rate Timeline</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating flow=*
+| eval flow_lpm = flow / 60
+| timechart span=10m avg(flow_lpm) as avg_flow_lpm
+| eval avg_flow_lpm = round(avg_flow_lpm, 1)</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Flow Rate (L/min)</option>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"avg_flow_lpm": 0x03A9F4}</option>
+        <option name="charting.areaFillOpacity">0.4</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>📐 Temperature Differential (ΔT) Timeline</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating (temp1=* AND temp2=*)
+| eval delta_t = temp1 - temp2
+| timechart span=10m avg(delta_t) as avg_delta_t
+| eval avg_delta_t = round(avg_delta_t, 1)</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">ΔT (°C)</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.lineWidth">3</option>
+        <option name="charting.fieldColors">{"avg_delta_t": 0x4CAF50}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 5: Daily Energy Consumption -->
+  <row>
+    <panel>
+      <title>📊 Daily Heat Energy Consumption (Last 30 Days)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating heat_energy=*
+    earliest=-30d latest=now
+| bucket _time span=1d
+| stats 
+    earliest(heat_energy) as start_energy,
+    latest(heat_energy) as end_energy
+    by _time
+| eval daily_kwh = (end_energy - start_energy) * 1000
+| eval date = strftime(_time, "%m/%d")
+| table date, daily_kwh
+| eval daily_kwh = round(daily_kwh, 0)</query>
+          <earliest>-30d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Date</option>
+        <option name="charting.axisTitleY.text">Consumption (kWh)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"daily_kwh": 0xFF9800}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 6: Hourly Analysis -->
+  <row>
+    <panel>
+      <title>⏰ Hourly Energy Breakdown (Today)</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating heat_energy=*
+    earliest=@d latest=now
+| bucket _time span=1h
+| stats 
+    earliest(heat_energy) as start_energy,
+    latest(heat_energy) as end_energy
+    by _time
+| eval hourly_kwh = (end_energy - start_energy) * 1000
+| eval hour = strftime(_time, "%H:00")
+| eval usage_level = case(
+    hourly_kwh &lt; 5, "Low",
+    hourly_kwh &lt; 15, "Normal",
+    hourly_kwh &lt; 25, "High",
+    1=1, "Very High"
+)
+| table hour, hourly_kwh, usage_level
+| eval hourly_kwh = round(hourly_kwh, 1)
+| sort hour</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">24</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="usage_level">
+          <colorPalette type="map">{"Low": #6DB7C6, "Normal": #65A637, "High": #F7BC38, "Very High": #D93F3C}</colorPalette>
+        </format>
+        <format type="number" field="hourly_kwh">
+          <option name="precision">1</option>
+          <option name="unit">kWh</option>
+        </format>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>📅 Weekly Comparison</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating heat_energy=*
+    earliest=-14d latest=now
+| eval week = if(_time &gt;= relative_time(now(), "-7d@d"), "This Week", "Last Week")
+| bucket _time span=1d
+| stats 
+    earliest(heat_energy) as start_energy,
+    latest(heat_energy) as end_energy
+    by _time, week
+| eval daily_kwh = (end_energy - start_energy) * 1000
+| stats sum(daily_kwh) as total_consumption by week
+| eval total_consumption = round(total_consumption, 0)
+| sort - week</query>
+          <earliest>-14d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">5</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="number" field="total_consumption">
+          <option name="precision">0</option>
+          <option name="unit">kWh</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+  
+  <!-- Row 7: Peak Power Analysis -->
+  <row>
+    <panel>
+      <title>🔥 Average Power by Hour of Day</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating power=*
+| eval hour = strftime(_time, "%H")
+| stats 
+    avg(power) as avg_power,
+    max(power) as max_power
+    by hour
+| eval avg_power = round(avg_power, 2)
+| eval max_power = round(max_power, 2)
+| sort hour</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Hour of Day</option>
+        <option name="charting.axisTitleY.text">Power (kW)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.fieldColors">{"avg_power": 0xFF9800, "max_power": 0xF44336}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 8: Efficiency Metrics -->
+  <row>
+    <panel>
+      <title>⭐ System Efficiency Score</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating (heat_energy=* AND volume=*)
+| stats 
+    latest(heat_energy) as total_energy_mwh,
+    latest(volume) as total_volume_m3
+| eval energy_kwh = total_energy_mwh * 1000
+| eval efficiency_kwh_per_m3 = energy_kwh / total_volume_m3
+| eval efficiency_kwh_per_m3 = round(efficiency_kwh_per_m3, 1)
+| fields efficiency_kwh_per_m3</query>
+          <earliest>-30d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[40,50,60,70]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">kWh per m³ (30-day)</option>
+        <option name="unit">kWh/m³</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>📐 Average ΔT (Efficiency Indicator)</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating (temp1=* AND temp2=*)
+| eval delta_t = temp1 - temp2
+| stats avg(delta_t) as avg_delta
+| eval avg_delta = round(avg_delta, 1)
+| fields avg_delta</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x6DB7C6","0x65A637"]</option>
+        <option name="rangeValues">[10,15,18]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">Average ΔT (Higher = Better)</option>
+        <option name="unit">°C</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <!-- Row 9: Alerts and Monitoring -->
+  <row>
+    <panel>
+      <title>⚠️ System Efficiency Alert</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating (temp1=* AND temp2=* AND power=*)
+| eval delta_t = temp1 - temp2
+| eval is_heating = if(power &gt; 1, 1, 0)
+| stats 
+    avg(delta_t) as avg_delta,
+    min(delta_t) as min_delta,
+    avg(power) as avg_power
+    by is_heating
+| where is_heating=1
+| eval efficiency_status = case(
+    avg_delta &gt;= 18, "✅ Excellent - Optimal Efficiency",
+    avg_delta &gt;= 15, "🟢 Good - Normal Operation",
+    avg_delta &gt;= 12, "🟡 Fair - Check System Balance",
+    avg_delta &gt;= 10, "🟠 Poor - Investigate Flow Rate",
+    1=1, "🔴 Critical - Low Heat Extraction"
+)
+| eval avg_delta = round(avg_delta, 1)
+| eval min_delta = round(min_delta, 1)
+| eval avg_power = round(avg_power, 1)
+| table efficiency_status, avg_delta, min_delta, avg_power</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">5</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="efficiency_status">
+          <colorPalette type="map">{"✅ Excellent - Optimal Efficiency": #65A637, "🟢 Good - Normal Operation": #6DB7C6, "🟡 Fair - Check System Balance": #F7BC38, "🟠 Poor - Investigate Flow Rate": #F58F39, "🔴 Critical - Low Heat Extraction": #D93F3C}</colorPalette>
+        </format>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>🌡️ Temperature Range Alert</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating temp1=*
+| stats 
+    latest(temp1) as current_temp,
+    min(temp1) as min_temp,
+    max(temp1) as max_temp,
+    latest(power) as current_power
+| eval status = case(
+    current_temp &gt; 85, "🔴 Too High - Risk of Damage",
+    current_temp &gt; 80, "🟡 High - Check Settings",
+    current_temp &lt; 40 AND current_power &gt; 1, "🔴 Too Low - System Issue",
+    current_temp &lt; 50 AND current_power &gt; 1, "🟡 Low - Verify Operation",
+    1=1, "✅ Normal Range"
+)
+| eval current_temp = round(current_temp, 1)
+| eval min_temp = round(min_temp, 1)
+| eval max_temp = round(max_temp, 1)
+| table status, current_temp, min_temp, max_temp</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">5</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="status">
+          <colorPalette type="map">{"✅ Normal Range": #65A637, "🟡 High - Check Settings": #F7BC38, "🟡 Low - Verify Operation": #F7BC38, "🔴 Too High - Risk of Damage": #D93F3C, "🔴 Too Low - System Issue": #D93F3C}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+  
+  <!-- Row 10: Cost Estimation -->
+  <row>
+    <panel>
+      <title>💰 Daily Heating Cost Estimate (Last 7 Days)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating heat_energy=*
+    earliest=-7d latest=now
+| bucket _time span=1d
+| stats 
+    earliest(heat_energy) as start_energy,
+    latest(heat_energy) as end_energy
+    by _time
+| eval daily_kwh = (end_energy - start_energy) * 1000
+| eval daily_cost = daily_kwh * 0.08
+| eval date = strftime(_time, "%m/%d")
+| table date, daily_cost
+| eval daily_cost = round(daily_cost, 2)</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Date</option>
+        <option name="charting.axisTitleY.text">Cost ($)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">all</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"daily_cost": 0x4CAF50}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>💵 Estimated Monthly Cost</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating heat_energy=*
+    earliest=-30d latest=now
+| bucket _time span=1d
+| stats 
+    earliest(heat_energy) as start_energy,
+    latest(heat_energy) as end_energy
+    by _time
+| eval daily_kwh = (end_energy - start_energy) * 1000
+| eval daily_cost = daily_kwh * 0.08
+| stats sum(daily_cost) as monthly_cost
+| eval monthly_cost = round(monthly_cost, 2)
+| fields monthly_cost</query>
+          <earliest>-30d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[50,100,150,200]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">30-DAY ESTIMATE ($0.08/kWh)</option>
+        <option name="unit">$</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <!-- Row 11: System Status -->
+  <row>
+    <panel>
+      <title>🔌 Gateway Status</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating
+| stats 
+    count as total_events,
+    latest(_time) as last_seen,
+    latest(wifi_rssi) as signal_dbm,
+    latest(running_firmware_version) as firmware
+| eval last_seen_time = strftime(last_seen, "%H:%M:%S")
+| eval time_since = now() - last_seen
+| eval status = case(
+    time_since &lt; 120, "🟢 ONLINE",
+    time_since &lt; 600, "🟡 DELAYED",
+    1=1, "🔴 OFFLINE"
+)
+| eval signal_quality = case(
+    signal_dbm &gt; -50, "Excellent",
+    signal_dbm &gt; -60, "Good",
+    signal_dbm &gt; -70, "Fair",
+    1=1, "Poor"
+)
+| table status, total_events, last_seen_time, signal_dbm, signal_quality, firmware</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">5</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="status">
+          <colorPalette type="map">{"🟢 ONLINE": #65A637, "🟡 DELAYED": #F7BC38, "🔴 OFFLINE": #D93F3C}</colorPalette>
+        </format>
+        <format type="color" field="signal_quality">
+          <colorPalette type="map">{"Excellent": #65A637, "Good": #6DB7C6, "Fair": #F7BC38, "Poor": #D93F3C}</colorPalette>
+        </format>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>✅ Data Freshness</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating
+| stats latest(_time) as last_event
+| eval seconds_ago = now() - last_event
+| eval status = case(
+    seconds_ago &lt; 60, "Current",
+    seconds_ago &lt; 300, "Recent",
+    seconds_ago &lt; 600, "Delayed",
+    1=1, "Stale"
+)
+| fields status</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">["Recent","Delayed","Stale"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">DATA STATUS</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+</form>
+
