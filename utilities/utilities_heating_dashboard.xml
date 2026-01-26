@@ -447,7 +447,7 @@
       <title>⭐ System Efficiency Score</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=kamstrup:heating (heat_energy=* AND volume=*)
+          <query>index=utilities sourcetype=kamstrup:heating heat_energy=* volume=*
 | stats 
     latest(heat_energy) as total_energy_mwh,
     latest(volume) as total_volume_m3
