@@ -78,6 +78,61 @@
     </panel>
     
     <panel>
+      <title>📟 Meter Reading (Meterstand)</title>
+      <html>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
+| stats latest(current_value) as meter_reading
+| eval meter_thousands=floor(meter_reading / 1000)
+| eval meter_ones=meter_reading % 1000
+| eval meter_ones_formatted=if(meter_ones &lt; 10, "00" + tostring(meter_ones), if(meter_ones &lt; 100, "0" + tostring(meter_ones), tostring(meter_ones)))
+| table meter_thousands, meter_ones_formatted</query>
+          <earliest>-5m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <style>
+          .meter-display {
+            text-align: center;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            background-color: #f5f5f5;
+            border: 2px solid #333;
+            border-radius: 8px;
+            margin: 10px;
+          }
+          .meter-value {
+            font-size: 48px;
+            font-weight: bold;
+            letter-spacing: 3px;
+          }
+          .meter-black {
+            color: #000000;
+          }
+          .meter-red {
+            color: #D93F3C;
+          }
+          .meter-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 10px;
+            font-family: Arial, sans-serif;
+          }
+        </style>
+        <div class="meter-display">
+          <div class="meter-value">
+            <span class="meter-black">$result.meter_thousands$</span><span class="meter-red">$result.meter_ones_formatted$</span>
+          </div>
+          <div class="meter-label">Liters (as shown on physical meter)</div>
+        </div>
+      </html>
+    </panel>
+  </row>
+  
+  <!-- Row 2: Flow Rate -->
+  <row>
+    <panel>
       <title>Current Flow Rate</title>
       <single>
         <search>
