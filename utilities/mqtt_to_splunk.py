@@ -195,16 +195,16 @@ def send_to_splunk(data: dict, source: str, sourcetype: str) -> bool:
 # MQTT Event Handlers
 # ============================================
 
-def on_connect(client, userdata, flags, rc):
-    """Callback when connected to MQTT broker"""
-    if rc == 0:
+def on_connect(client, userdata, flags, reason_code, properties):
+    """Callback when connected to MQTT broker (API VERSION2)"""
+    if reason_code == 0:
         logger.info("Connected to MQTT broker successfully")
         # Subscribe to all utility topics
         for topic, qos in MQTT_TOPICS:
             client.subscribe(topic, qos)
             logger.info(f"Subscribed to topic: {topic}")
     else:
-        logger.error(f"Failed to connect to MQTT broker. Return code: {rc}")
+        logger.error(f"Failed to connect to MQTT broker. Reason code: {reason_code}")
         error_messages = {
             1: "Incorrect protocol version",
             2: "Invalid client identifier",
@@ -212,7 +212,7 @@ def on_connect(client, userdata, flags, rc):
             4: "Bad username or password",
             5: "Not authorized"
         }
-        logger.error(f"Error: {error_messages.get(rc, 'Unknown error')}")
+        logger.error(f"Error: {error_messages.get(reason_code, 'Unknown error')}")
         sys.exit(1)
 
 
