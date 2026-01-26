@@ -22,7 +22,7 @@
   <!-- Row 1: Current Status Panels -->
   <row>
     <panel>
-      <title>Today's Total Consumption</title>
+      <title>Today's Consumption (Liters)</title>
       <single>
         <search>
           <query>index=utilities sourcetype=elster:coldwater current_value=*
@@ -31,8 +31,7 @@
     earliest(current_value) as start_today,
     latest(current_value) as current_reading
 | eval liters_today=current_reading - start_today
-| eval gallons_today=round(liters_today * 0.264172, 1)
-| fields liters_today, gallons_today</query>
+| fields liters_today</query>
           <earliest>@d</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
@@ -47,6 +46,34 @@
         <option name="unit">L</option>
         <option name="useColors">1</option>
         <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Today's Consumption (m³)</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
+    earliest=@d latest=now
+| stats 
+    earliest(current_value) as start_today,
+    latest(current_value) as current_reading
+| eval liters_today=current_reading - start_today
+| eval m3_today=round(liters_today / 1000, 3)
+| fields m3_today</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.001</option>
+        <option name="rangeColors">["0x65A637","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[0.2,0.4,0.6]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">CUBIC METERS</option>
+        <option name="unit">m³</option>
+        <option name="useColors">1</option>
       </single>
     </panel>
     

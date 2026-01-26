@@ -80,9 +80,8 @@
       <single>
         <search>
           <query>index=utilities sourcetype=elster:coldwater current_value=*
-| stats latest(current_value) as total_pulses
-| eval liters=total_pulses
-| eval display_value=round(liters / 1000, 2)
+| stats latest(current_value) as total_liters
+| eval display_value=round(total_liters, 0)
 | fields display_value</query>
           <earliest>-15m</earliest>
           <latest>now</latest>
@@ -90,13 +89,14 @@
           <refreshType>delay</refreshType>
         </search>
         <option name="drilldown">all</option>
-        <option name="numberPrecision">0.01</option>
+        <option name="numberPrecision">0</option>
         <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
-        <option name="rangeValues">[400,500,600]</option>
+        <option name="rangeValues">[400000,500000,600000]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">TOTAL (m³) - Click for Details</option>
-        <option name="unit">m³</option>
+        <option name="underLabel">TOTAL LITERS - Click for Details</option>
+        <option name="unit">L</option>
         <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
         <drilldown>
           <link target="_blank">/app/mdgi/utilities_coldwater_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
         </drilldown>
