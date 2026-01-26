@@ -252,7 +252,7 @@ def on_message(client, userdata, msg):
         
         # Enrich data with metadata
         data['mqtt_topic'] = topic
-        data['received_at'] = datetime.utcnow().isoformat() + "Z"
+        data['received_at'] = datetime.now(datetime.UTC).isoformat()
         
         # Send to Splunk
         success = send_to_splunk(data, source, sourcetype)
@@ -291,8 +291,12 @@ def main():
     logger.info(f"SSL Verification: {SPLUNK_VERIFY_SSL}")
     logger.info("=" * 60)
     
-    # Create MQTT client
-    client = mqtt.Client(client_id="splunk_forwarder", clean_session=True)
+    # Create MQTT client (using callback API version 2)
+    client = mqtt.Client(
+        mqtt.CallbackAPIVersion.VERSION2,
+        client_id="splunk_forwarder",
+        clean_session=True
+    )
     client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     
     # Set callbacks
