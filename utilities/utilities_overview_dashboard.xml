@@ -281,11 +281,12 @@
       <title>💨 Real-Time Flow Rates (L/h)</title>
       <chart>
         <search>
-          <query>index=utilities (flow=* OR water_used_last_minute=*)
+          <query>index=utilities sourcetype IN (kamstrup:heating, kamstrup:hotwater, elster:coldwater)
 | eval flow_lph=case(
-    isnotnull(flow), flow,
-    isnotnull(water_used_last_minute), water_used_last_minute * 60,
-    1=1, 0
+    sourcetype=="kamstrup:heating" AND isnotnull(flow), flow * 1000,
+    sourcetype=="kamstrup:hotwater" AND isnotnull(flow), flow * 1000,
+    sourcetype=="elster:coldwater" AND isnotnull(water_used_last_minute), water_used_last_minute * 60,
+    1=1, null()
   )
 | eval utility=case(
     sourcetype=="kamstrup:hotwater", "Hot Water",
@@ -315,7 +316,7 @@
       <title>⚡ Power Consumption (kW)</title>
       <chart>
         <search>
-          <query>index=utilities sourcetype IN (kamstrup:*) power=*
+          <query>index=utilities sourcetype IN (kamstrup:heating, kamstrup:hotwater)
 | eval utility=case(
     sourcetype=="kamstrup:hotwater", "Hot Water",
     sourcetype=="kamstrup:heating", "Heating",
