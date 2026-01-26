@@ -33,7 +33,7 @@ import paho.mqtt.client as mqtt
 import json
 import requests
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import urllib3
 
@@ -252,7 +252,7 @@ def on_message(client, userdata, msg):
         
         # Enrich data with metadata
         data['mqtt_topic'] = topic
-        data['received_at'] = datetime.now(datetime.UTC).isoformat()
+        data['received_at'] = datetime.now(timezone.utc).isoformat()
         
         # Send to Splunk
         success = send_to_splunk(data, source, sourcetype)
