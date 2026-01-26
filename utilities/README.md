@@ -370,7 +370,7 @@ sudo systemctl status mqtt-to-splunk
 - [utilities_hotwater_dashboard.xml](utilities_hotwater_dashboard.xml) - **Hot water dashboard XML** (detailed monitoring)
 - [utilities_heating_dashboard.xml](utilities_heating_dashboard.xml) - **Heating dashboard XML** (detailed monitoring)
 - [OVERVIEW_DASHBOARD_INSTALLATION.md](OVERVIEW_DASHBOARD_INSTALLATION.md) - Overview dashboard setup guide
-- [MDGI_APP_INTEGRATION.md](MDGI_APP_INTEGRATION.md) - **Integration guide for MDGi Splunk app** (navigation menu, drill-downs)
+- [MDGI_APP_INTEGRATION.md](MDGI_APP_INTEGRATION.md) - **Integration guide for mdgi Splunk app** (navigation menu, drill-downs)
 - [mdgi_navigation_default.xml](mdgi_navigation_default.xml) - MDGi app navigation menu with Utilities collection
 - [mqtt_topic_utilities.md](mqtt_topic_utilities.md) - Complete MQTT integration guide
 - [../documentation/mqtt_broker_setup.md](../documentation/mqtt_broker_setup.md) - MQTT broker configuration

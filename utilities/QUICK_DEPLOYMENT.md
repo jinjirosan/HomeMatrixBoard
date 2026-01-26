@@ -1,4 +1,6 @@
-# Quick Deployment Guide - MDGi Integration
+# Quick Deployment Guide - mdgi Integration
+
+**Note:** App name is `mdgi` (lowercase) - case-sensitive in URLs!
 
 ## 🚀 5-Minute Integration Checklist
 
@@ -6,7 +8,7 @@
 
 ```bash
 # On your Splunk search head or deployment server
-cd /opt/splunk/etc/apps/MDGi/local/data/ui/views/
+cd /opt/splunk/etc/apps/mdgi/local/data/ui/views/
 
 # Copy all 4 dashboards
 sudo cp ~/github/HomeMatrixBoard/utilities/utilities_overview_dashboard.xml .
@@ -15,7 +17,7 @@ sudo cp ~/github/HomeMatrixBoard/utilities/utilities_hotwater_dashboard.xml .
 sudo cp ~/github/HomeMatrixBoard/utilities/utilities_coldwater_dashboard.xml .
 
 # Fix permissions
-sudo chown -R splunk:splunk /opt/splunk/etc/apps/MDGi/
+sudo chown -R splunk:splunk /opt/splunk/etc/apps/mdgi/
 ```
 
 ---
@@ -24,7 +26,7 @@ sudo chown -R splunk:splunk /opt/splunk/etc/apps/MDGi/
 
 ```bash
 # Backup current navigation
-cd /opt/splunk/etc/apps/MDGi/local/data/ui/nav/
+cd /opt/splunk/etc/apps/mdgi/local/data/ui/nav/
 sudo cp default.xml default.xml.backup
 
 # Edit navigation
@@ -61,7 +63,7 @@ sudo /opt/splunk/bin/splunk reload deploy-server
 
 ### Step 4: Test (30 seconds)
 
-1. Open: `http://your-splunk:8000/app/MDGi/`
+1. Open: `http://your-splunk:8000/app/mdgi/`
 2. Look for **"Utilities"** in navigation bar
 3. Click **"utilities_overview_dashboard"**
 4. Click on **"🔥 Heating System"** panel → should open heating dashboard
@@ -74,10 +76,10 @@ sudo /opt/splunk/bin/splunk reload deploy-server
 After deployment, access dashboards at:
 
 ```
-http://your-splunk:8000/app/MDGi/utilities_overview_dashboard
-http://your-splunk:8000/app/MDGi/utilities_heating_dashboard
-http://your-splunk:8000/app/MDGi/utilities_hotwater_dashboard
-http://your-splunk:8000/app/MDGi/utilities_coldwater_dashboard
+http://your-splunk:8000/app/mdgi/utilities_overview_dashboard
+http://your-splunk:8000/app/mdgi/utilities_heating_dashboard
+http://your-splunk:8000/app/mdgi/utilities_hotwater_dashboard
+http://your-splunk:8000/app/mdgi/utilities_coldwater_dashboard
 ```
 
 ---
@@ -88,11 +90,11 @@ http://your-splunk:8000/app/MDGi/utilities_coldwater_dashboard
 
 ```bash
 # Check files exist
-ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/utilities_*.xml
+ls -la /opt/splunk/etc/apps/mdgi/local/data/ui/views/utilities_*.xml
 
 # Fix permissions if needed
-sudo chown -R splunk:splunk /opt/splunk/etc/apps/MDGi/
-sudo chmod 644 /opt/splunk/etc/apps/MDGi/local/data/ui/views/*.xml
+sudo chown -R splunk:splunk /opt/splunk/etc/apps/mdgi/
+sudo chmod 644 /opt/splunk/etc/apps/mdgi/local/data/ui/views/*.xml
 ```
 
 ### Navigation not updating?
@@ -114,11 +116,11 @@ If something goes wrong:
 
 ```bash
 # Restore navigation
-cd /opt/splunk/etc/apps/MDGi/local/data/ui/nav/
+cd /opt/splunk/etc/apps/mdgi/local/data/ui/nav/
 sudo cp default.xml.backup default.xml
 
 # Remove dashboards
-cd /opt/splunk/etc/apps/MDGi/local/data/ui/views/
+cd /opt/splunk/etc/apps/mdgi/local/data/ui/views/
 sudo rm -f utilities_overview_dashboard.xml
 sudo rm -f utilities_heating_dashboard.xml  
 sudo rm -f utilities_hotwater_dashboard.xml

@@ -1,4 +1,5 @@
 <nav search_view="search" color="#dd6600">
+  <!-- NOTE: App name is 'mdgi' (lowercase) in filesystem -->
   <view name="search"/>
   <view name="reports"/>
   <view name="overall_status" default='true'/>

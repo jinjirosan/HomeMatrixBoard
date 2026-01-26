@@ -1,8 +1,10 @@
-# MDGi App Integration Guide - Utilities Dashboards
+# mdgi App Integration Guide - Utilities Dashboards
 
 ## Overview
 
-This guide provides step-by-step instructions to integrate the utilities monitoring dashboards into your existing **MDGi** Splunk app with drill-down navigation.
+This guide provides step-by-step instructions to integrate the utilities monitoring dashboards into your existing **mdgi** Splunk app (lowercase) with drill-down navigation.
+
+**Note:** The app name is case-sensitive in URLs. Use `mdgi` (lowercase) not `MDGi`.
 
 ---
 
@@ -58,7 +60,7 @@ Overview Dashboard
 
 ```bash
 # On your deployment server
-cd /opt/splunk/etc/deployment-apps/MDGi/local/data/ui/views/
+cd /opt/splunk/etc/deployment-apps/mdgi/local/data/ui/views/
 
 # Copy all 4 dashboard XML files
 sudo cp /path/to/utilities_overview_dashboard.xml .
@@ -67,7 +69,7 @@ sudo cp /path/to/utilities_hotwater_dashboard.xml .
 sudo cp /path/to/utilities_coldwater_dashboard.xml .
 
 # Set ownership
-sudo chown -R splunk:splunk /opt/splunk/etc/deployment-apps/MDGi/
+sudo chown -R splunk:splunk /opt/splunk/etc/deployment-apps/mdgi/
 
 # Deploy to search head(s)
 sudo /opt/splunk/bin/splunk reload deploy-server
@@ -77,10 +79,10 @@ sudo /opt/splunk/bin/splunk reload deploy-server
 
 ```bash
 # On your search head
-cd /opt/splunk/etc/apps/MDGi/local/data/ui/views/
+cd /opt/splunk/etc/apps/mdgi/local/data/ui/views/
 
 # If the directory doesn't exist, create it
-sudo mkdir -p /opt/splunk/etc/apps/MDGi/local/data/ui/views/
+sudo mkdir -p /opt/splunk/etc/apps/mdgi/local/data/ui/views/
 
 # Copy all 4 dashboard XML files
 sudo cp /path/to/utilities_overview_dashboard.xml .
@@ -89,7 +91,7 @@ sudo cp /path/to/utilities_hotwater_dashboard.xml .
 sudo cp /path/to/utilities_coldwater_dashboard.xml .
 
 # Set ownership
-sudo chown -R splunk:splunk /opt/splunk/etc/apps/MDGi/
+sudo chown -R splunk:splunk /opt/splunk/etc/apps/mdgi/
 
 # Reload Splunk (dashboards usually auto-detect, but this ensures it)
 sudo /opt/splunk/bin/splunk reload
@@ -103,7 +105,7 @@ sudo /opt/splunk/bin/splunk reload
 
 ```bash
 # On deployment server (or directly on search head)
-cd /opt/splunk/etc/apps/MDGi/local/data/ui/nav/
+cd /opt/splunk/etc/apps/mdgi/local/data/ui/nav/
 
 # Backup existing navigation
 sudo cp default.xml default.xml.backup
@@ -167,7 +169,7 @@ Ensure the dashboards are visible in the app:
 
 ```bash
 # Check file permissions
-ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/*.xml
+ls -la /opt/splunk/etc/apps/mdgi/local/data/ui/views/*.xml
 
 # All should be owned by splunk:splunk with 644 permissions
 ```
@@ -188,10 +190,10 @@ Create metadata for better dashboard descriptions:
 
 ```bash
 # Create metadata directory if it doesn't exist
-sudo mkdir -p /opt/splunk/etc/apps/MDGi/metadata/
+sudo mkdir -p /opt/splunk/etc/apps/mdgi/metadata/
 
 # Edit default.meta
-sudo nano /opt/splunk/etc/apps/MDGi/metadata/default.meta
+sudo nano /opt/splunk/etc/apps/mdgi/metadata/default.meta
 ```
 
 **Add these entries:**
@@ -243,7 +245,7 @@ sudo /opt/splunk/bin/splunk restart splunkweb
 
 1. **Open MDGi App:**
    ```
-   http://your-splunk:8000/app/MDGi/overall_status
+   http://your-splunk:8000/app/mdgi/overall_status
    ```
 
 2. **Navigate to Utilities:**
@@ -264,10 +266,10 @@ After integration, your dashboards will be accessible at:
 
 | Dashboard | URL |
 |-----------|-----|
-| **Overview** | `http://splunk:8000/app/MDGi/utilities_overview_dashboard` |
-| **Heating** | `http://splunk:8000/app/MDGi/utilities_heating_dashboard` |
-| **Hot Water** | `http://splunk:8000/app/MDGi/utilities_hotwater_dashboard` |
-| **Cold Water** | `http://splunk:8000/app/MDGi/utilities_coldwater_dashboard` |
+| **Overview** | `http://splunk:8000/app/mdgi/utilities_overview_dashboard` |
+| **Heating** | `http://splunk:8000/app/mdgi/utilities_heating_dashboard` |
+| **Hot Water** | `http://splunk:8000/app/mdgi/utilities_hotwater_dashboard` |
+| **Cold Water** | `http://splunk:8000/app/mdgi/utilities_coldwater_dashboard` |
 
 ---
 
@@ -319,7 +321,7 @@ Add a note panel at the top of each sub-dashboard to link back to overview:
   <panel>
     <html>
       <div style="background-color: #f0f0f0; padding: 10px; border-radius: 5px; text-align: center;">
-        <a href="/app/MDGi/utilities_overview_dashboard" style="font-size: 14px; color: #0066cc;">
+        <a href="/app/mdgi/utilities_overview_dashboard" style="font-size: 14px; color: #0066cc;">
           ⬅ Back to Utilities Overview
         </a>
       </div>
@@ -339,12 +341,12 @@ Add a note panel at the top of each sub-dashboard to link back to overview:
 **Solution:**
 ```bash
 # Check if dashboard files exist
-ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/utilities*.xml
-ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/*water*.xml
-ls -la /opt/splunk/etc/apps/MDGi/local/data/ui/views/heating*.xml
+ls -la /opt/splunk/etc/apps/mdgi/local/data/ui/views/utilities*.xml
+ls -la /opt/splunk/etc/apps/mdgi/local/data/ui/views/*water*.xml
+ls -la /opt/splunk/etc/apps/mdgi/local/data/ui/views/heating*.xml
 
 # Verify file permissions
-sudo chown -R splunk:splunk /opt/splunk/etc/apps/MDGi/
+sudo chown -R splunk:splunk /opt/splunk/etc/apps/mdgi/
 
 # Reload
 sudo /opt/splunk/bin/splunk restart splunkweb
@@ -355,15 +357,15 @@ sudo /opt/splunk/bin/splunk restart splunkweb
 **Symptoms:** Clicking panels doesn't navigate to sub-dashboards
 
 **Check:**
-1. Verify app name in XML is correct (`/app/MDGi/...`)
-2. Check that dashboards exist in the MDGi app
+1. Verify app name in XML is correct (`/app/mdgi/...`)
+2. Check that dashboards exist in the mdgi app
 3. Verify user has permissions to access dashboards
 
 **Fix drill-down links:**
 ```xml
 <!-- Ensure the app name matches your actual app name -->
 <drilldown>
-  <link target="_blank">/app/MDGi/utilities_heating_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
+  <link target="_blank">/app/mdgi/utilities_heating_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
 </drilldown>
 ```
 
@@ -402,10 +404,10 @@ sudo /opt/splunk/bin/splunk reload deploy-server
 
 ## File Structure Reference
 
-After integration, your MDGi app structure should look like:
+After integration, your mdgi app structure should look like:
 
 ```
-/opt/splunk/etc/apps/MDGi/
+/opt/splunk/etc/apps/mdgi/
 ├── local/
 │   ├── data/
 │   │   └── ui/
@@ -418,14 +420,14 @@ After integration, your MDGi app structure should look like:
 │   │           └── utilities_coldwater_dashboard.xml (NEW)
 │   └── metadata/
 │       └── default.meta (OPTIONAL)
-└── ... (existing MDGi app files)
+└── ... (existing mdgi app files)
 ```
 
 ---
 
 ## Deployment Checklist
 
-- [ ] Copy 4 dashboard XML files to MDGi app views directory
+- [ ] Copy 4 dashboard XML files to mdgi app views directory
 - [ ] Update navigation default.xml with Utilities collection
 - [ ] Set file permissions (splunk:splunk, 644)
 - [ ] Reload Splunk web interface
@@ -446,7 +448,7 @@ If you need to revert the integration:
 
 ```bash
 # On deployment server or search head
-cd /opt/splunk/etc/apps/MDGi/local/data/ui/
+cd /opt/splunk/etc/apps/mdgi/local/data/ui/
 
 # Restore navigation backup
 sudo cp nav/default.xml.backup nav/default.xml
@@ -467,7 +469,7 @@ sudo /opt/splunk/bin/splunk restart splunkweb
 
 ### Enable Dashboard Sharing
 
-To make dashboards accessible to all MDGi app users:
+To make dashboards accessible to all mdgi app users:
 
 1. Go to each dashboard in Splunk Web
 2. Click **Edit** → **Edit Permissions**
@@ -496,10 +498,10 @@ Create shortcuts on MDGi home screen:
     <html>
       <h2>Quick Links</h2>
       <ul>
-        <li><a href="/app/MDGi/utilities_overview_dashboard">🏠 Utilities Overview</a></li>
-        <li><a href="/app/MDGi/utilities_heating_dashboard">🔥 Heating System</a></li>
-        <li><a href="/app/MDGi/utilities_hotwater_dashboard">💧 Hot Water</a></li>
-        <li><a href="/app/MDGi/utilities_coldwater_dashboard">🚰 Cold Water</a></li>
+        <li><a href="/app/mdgi/utilities_overview_dashboard">🏠 Utilities Overview</a></li>
+        <li><a href="/app/mdgi/utilities_heating_dashboard">🔥 Heating System</a></li>
+        <li><a href="/app/mdgi/utilities_hotwater_dashboard">💧 Hot Water</a></li>
+        <li><a href="/app/mdgi/utilities_coldwater_dashboard">🚰 Cold Water</a></li>
       </ul>
     </html>
   </panel>
@@ -536,5 +538,5 @@ For issues with:
 
 ---
 
-**✅ Integration Complete! Your utilities monitoring is now part of the MDGi app!**
+**✅ Integration Complete! Your utilities monitoring is now part of the mdgi app!**
 

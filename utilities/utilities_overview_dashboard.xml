@@ -43,7 +43,7 @@
         <option name="unit">m³</option>
         <option name="useColors">1</option>
         <drilldown>
-          <link target="_blank">/app/MDGi/utilities_heating_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
+          <link target="_blank">/app/mdgi/utilities_heating_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
         </drilldown>
       </single>
     </panel>
@@ -70,7 +70,7 @@
         <option name="unit">m³</option>
         <option name="useColors">1</option>
         <drilldown>
-          <link target="_blank">/app/MDGi/utilities_hotwater_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
+          <link target="_blank">/app/mdgi/utilities_hotwater_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
         </drilldown>
       </single>
     </panel>
@@ -98,7 +98,7 @@
         <option name="unit">m³</option>
         <option name="useColors">1</option>
         <drilldown>
-          <link target="_blank">/app/MDGi/utilities_coldwater_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
+          <link target="_blank">/app/mdgi/utilities_coldwater_dashboard?form.time_token.earliest=$time_token.earliest$&amp;form.time_token.latest=$time_token.latest$</link>
         </drilldown>
       </single>
     </panel>
