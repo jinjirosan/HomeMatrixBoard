@@ -361,7 +361,8 @@ sudo systemctl status mqtt-to-splunk
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Complete deployment walkthrough
 - [HAPROXY_SETUP.md](HAPROXY_SETUP.md) - HAProxy load balancer configuration
 - [SPLUNK_SETUP.md](SPLUNK_SETUP.md) - Splunk HEC and index configuration
-- [SPLUNK_DASHBOARDS.md](SPLUNK_DASHBOARDS.md) - SPL queries and dashboard layouts
+- [SPLUNK_DASHBOARDS.md](SPLUNK_DASHBOARDS.md) - SPL queries and dashboard layouts (all utilities)
+- [SPLUNK_COLDWATER_DASHBOARD.md](SPLUNK_COLDWATER_DASHBOARD.md) - Dedicated cold water monitoring dashboard
 - [mqtt_topic_utilities.md](mqtt_topic_utilities.md) - Complete MQTT integration guide
 - [../documentation/mqtt_broker_setup.md](../documentation/mqtt_broker_setup.md) - MQTT broker configuration
 
