@@ -1,0 +1,498 @@
+<form version="1.1">
+  <label>💧 Cold Water Consumption Dashboard</label>
+  <description>Real-time monitoring of Elster cold water smart gateway</description>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time_token">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="refresh_token">
+      <label>Auto Refresh</label>
+      <choice value="30s">30 seconds</choice>
+      <choice value="1m">1 minute</choice>
+      <choice value="5m">5 minutes</choice>
+      <choice value="0">None</choice>
+      <default>30s</default>
+    </input>
+  </fieldset>
+  
+  <!-- Row 1: Current Status Panels -->
+  <row>
+    <panel>
+      <title>Today's Total Consumption</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
+    earliest=@d latest=now
+| stats 
+    earliest(current_value) as start_today,
+    latest(current_value) as current_reading
+| eval liters_today=current_reading - start_today
+| eval gallons_today=round(liters_today * 0.264172, 1)
+| fields liters_today, gallons_today</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x65A637","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[200,400,600]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">LITERS</option>
+        <option name="unit">L</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Current Flow Rate</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater water_used_last_minute=*
+| stats latest(water_used_last_minute) as current_flow_lpm
+| eval flow_lph=round(current_flow_lpm * 60, 1)
+| eval status=case(
+    current_flow_lpm = 0, "No Flow",
+    current_flow_lpm &lt; 1, "Light",
+    current_flow_lpm &lt; 5, "Moderate",
+    current_flow_lpm &gt;= 5, "Heavy",
+    1=1, "Unknown"
+  )
+| fields current_flow_lpm, flow_lph, status</query>
+          <earliest>-5m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[0.1,1,5]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">L/MIN</option>
+        <option name="unit">L/min</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Leak Detection Status</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater leak_detect=*
+| stats 
+    latest(leak_detect) as current_status,
+    count(eval(leak_detect=1)) as leak_events
+| eval status=case(
+    current_status=0, "NO LEAK",
+    current_status=1, "LEAK DETECTED",
+    1=1, "UNKNOWN"
+  )
+| eval display_value=if(current_status=0, 0, 1)
+| fields display_value, status</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x65A637","0xD93F3C"]</option>
+        <option name="rangeValues">[0.5]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">STATUS</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Gateway Health</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater
+| stats 
+    latest(_time) as last_seen,
+    latest(wifi_rssi) as signal_dbm,
+    count as msg_count
+| eval time_since=now() - last_seen
+| eval status=case(
+    time_since &lt; 120, "ONLINE",
+    time_since &lt; 600, "DELAYED",
+    1=1, "OFFLINE"
+  )
+| eval signal_quality=case(
+    signal_dbm &gt; -50, "Excellent",
+    signal_dbm &gt; -60, "Good",
+    signal_dbm &gt; -70, "Fair",
+    1=1, "Poor"
+  )
+| eval display_value=case(
+    time_since &lt; 120, 100,
+    time_since &lt; 600, 50,
+    1=1, 0
+  )
+| fields display_value, signal_dbm, signal_quality</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x65A637"]</option>
+        <option name="rangeValues">[25,75]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">SIGNAL</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <!-- Row 2: Flow Rate Timeline -->
+  <row>
+    <panel>
+      <title>Real-Time Flow Rate (Last 24 Hours)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater water_used_last_minute=*
+| timechart span=5m avg(water_used_last_minute) as flow_lpm
+| eval flow_lph=flow_lpm * 60
+| fields _time, flow_lpm, flow_lph</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Flow Rate (L/min)</option>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="charting.chart.nullValueMode">connect</option>
+        <option name="charting.fieldColors">{"flow_lpm": 0x1E88E5}</option>
+        <option name="charting.areaFillOpacity">0.3</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 3: Daily Consumption Chart -->
+  <row>
+    <panel>
+      <title>Daily Consumption (Last 30 Days)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
+    earliest=-30d latest=now
+| bucket _time span=1d
+| stats 
+    earliest(current_value) as start_of_day,
+    latest(current_value) as end_of_day
+    by _time
+| where isnotnull(start_of_day) AND isnotnull(end_of_day)
+| eval daily_liters=end_of_day - start_of_day
+| eval daily_gallons=round(daily_liters * 0.264172, 1)
+| eval date=strftime(_time, "%m/%d")
+| table _time, date, daily_liters, daily_gallons
+| sort - _time
+| fields _time, daily_liters</query>
+          <earliest>-30d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Date</option>
+        <option name="charting.axisTitleY.text">Consumption (Liters)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"daily_liters": 0x26A69A}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 4: Hourly Breakdown and Weekly Comparison -->
+  <row>
+    <panel>
+      <title>Hourly Usage Today</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater water_used_last_minute=*
+    earliest=@d latest=now
+| eval hour=strftime(_time, "%H:00")
+| stats sum(water_used_last_minute) as hourly_liters by hour
+| eval hourly_gallons=round(hourly_liters * 0.264172, 1)
+| eval hourly_liters=round(hourly_liters, 1)
+| eval usage_level=case(
+    hourly_liters &lt; 10, "Low",
+    hourly_liters &lt; 30, "Normal",
+    hourly_liters &lt; 60, "High",
+    1=1, "Very High"
+  )
+| table hour, hourly_liters, hourly_gallons, usage_level
+| sort hour</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">24</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="usage_level">
+          <colorPalette type="map">{"Low": #65A637, "Normal": #6DB7C6, "High": #F7BC38, "Very High": #D93F3C}</colorPalette>
+        </format>
+        <format type="number" field="hourly_liters">
+          <option name="precision">1</option>
+        </format>
+        <format type="number" field="hourly_gallons">
+          <option name="precision">1</option>
+        </format>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>Weekly Comparison</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
+    earliest=-14d latest=now
+| eval week=if(_time &gt; relative_time(now(), "-7d"), "This Week", "Last Week")
+| bucket _time span=1d
+| stats 
+    earliest(current_value) as start_reading,
+    latest(current_value) as end_reading
+    by _time, week
+| eval daily_liters=end_reading - start_reading
+| stats sum(daily_liters) as total_liters by week
+| eval gallons=round(total_liters * 0.264172, 0)
+| eval m3=round(total_liters / 1000, 2)
+| table week, total_liters, gallons, m3
+| transpose 0 header_field=week
+| eval change_liters=round('This Week' - 'Last Week', 0)
+| eval change_percent=round((('This Week' - 'Last Week') / 'Last Week') * 100, 1)
+| eval trend=case(
+    change_percent &gt; 10, "⬆ Increase",
+    change_percent &lt; -10, "⬇ Decrease",
+    1=1, "→ Similar"
+  )
+| table "Last Week", "This Week", change_liters, change_percent, trend</query>
+          <earliest>-14d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="trend">
+          <colorPalette type="map">{"⬆ Increase": #D93F3C, "⬇ Decrease": #65A637, "→ Similar": #6DB7C6}</colorPalette>
+        </format>
+        <format type="number" field="Last Week">
+          <option name="precision">0</option>
+          <option name="unit">L</option>
+        </format>
+        <format type="number" field="This Week">
+          <option name="precision">0</option>
+          <option name="unit">L</option>
+        </format>
+        <format type="number" field="change_liters">
+          <option name="precision">0</option>
+          <option name="unit">L</option>
+        </format>
+        <format type="number" field="change_percent">
+          <option name="precision">1</option>
+          <option name="unit">%</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+  
+  <!-- Row 5: Peak Usage Times Heatmap -->
+  <row>
+    <panel>
+      <title>Peak Usage Times (Last 7 Days)</title>
+      <chart>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater water_used_last_minute=*
+    earliest=-7d latest=now
+| eval hour=strftime(_time, "%H")
+| stats 
+    avg(water_used_last_minute) as avg_flow,
+    max(water_used_last_minute) as max_flow
+    by hour
+| eval avg_flow=round(avg_flow, 2)
+| eval max_flow=round(max_flow, 1)
+| sort hour</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+          <refresh>6h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Hour of Day</option>
+        <option name="charting.axisTitleY.text">Flow Rate (L/min)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.fieldColors">{"avg_flow": 0x4CAF50, "max_flow": 0xFF5722}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 6: Continuous Flow Detection and Anomalies -->
+  <row>
+    <panel>
+      <title>Continuous Flow Detection (Leak Alert)</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater water_used_last_minute=*
+    earliest=-2h latest=now
+| where water_used_last_minute &gt; 0.1
+| streamstats count as consecutive_minutes reset_on_change=f
+| stats 
+    max(consecutive_minutes) as longest_flow,
+    latest(water_used_last_minute) as current_flow
+| eval alert_level=case(
+    longest_flow &gt; 60, "LEAK SUSPECTED",
+    longest_flow &gt; 30, "INVESTIGATE",
+    longest_flow &gt; 15, "EXTENDED USE",
+    1=1, "NORMAL"
+  )
+| eval alert_value=case(
+    longest_flow &gt; 60, 100,
+    longest_flow &gt; 30, 66,
+    longest_flow &gt; 15, 33,
+    1=1, 0
+  )
+| fields alert_value, longest_flow, alert_level</query>
+          <earliest>-2h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[10,40,70]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">MINUTES OF FLOW</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Today vs Average (Efficiency)</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
+    earliest=-30d latest=now
+| bucket _time span=1d
+| stats 
+    earliest(current_value) as start,
+    latest(current_value) as end
+    by _time
+| eval daily_liters=end - start
+| eval is_today=if(_time &gt;= relative_time(now(), "@d"), 1, 0)
+| stats 
+    avg(eval(if(is_today=0, daily_liters, null()))) as avg_usage,
+    latest(eval(if(is_today=1, daily_liters, null()))) as today_usage
+| eval efficiency_percent=round(((avg_usage - today_usage) / avg_usage) * 100, 0)
+| eval status=case(
+    efficiency_percent &gt; 20, "⭐⭐⭐⭐⭐",
+    efficiency_percent &gt; 10, "⭐⭐⭐⭐",
+    efficiency_percent &gt; 0, "⭐⭐⭐",
+    efficiency_percent &gt; -10, "⭐⭐",
+    1=1, "⭐"
+  )
+| fields efficiency_percent, status</query>
+          <earliest>-30d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x6DB7C6","0x65A637"]</option>
+        <option name="rangeValues">[-10,0,10]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">VS 30-DAY AVG</option>
+        <option name="unit">%</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <!-- Row 7: Cost Estimate -->
+  <row>
+    <panel>
+      <title>Monthly Cost Estimate</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater current_value=*
+    earliest=-30d latest=now
+| bucket _time span=1mon
+| stats 
+    earliest(current_value) as start_month,
+    latest(current_value) as end_month
+    by _time
+| eval monthly_liters=end_month - start_month
+| eval monthly_m3=monthly_liters / 1000
+| eval cost_estimate=monthly_m3 * 2.50
+| eval cost_estimate=round(cost_estimate, 2)
+| fields cost_estimate</query>
+          <earliest>-30d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[50,100,150]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">ESTIMATED MONTHLY COST</option>
+        <option name="unit">$</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Data Freshness</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater
+| stats latest(_time) as last_event
+| eval seconds_ago=now() - last_event
+| eval minutes_ago=round(seconds_ago / 60, 1)
+| eval freshness=case(
+    seconds_ago &lt; 300, 100,
+    seconds_ago &lt; 900, 50,
+    1=1, 0
+  )
+| fields freshness, minutes_ago</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x65A637"]</option>
+        <option name="rangeValues">[25,75]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">DATA STATUS</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+</form>
+
