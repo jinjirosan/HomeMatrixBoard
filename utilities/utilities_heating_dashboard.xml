@@ -99,14 +99,40 @@
     </panel>
     
     <panel>
+      <title>Return Temperature</title>
+      <single>
+        <search>
+          <query>index=utilities sourcetype=kamstrup:heating temp2=*
+| stats latest(temp2) as return_temp
+| eval return_temp = round(return_temp, 1)
+| fields return_temp</query>
+          <earliest>-5m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x65A637","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[35,45,55,65]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">RETURN (°C)</option>
+        <option name="unit">°C</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
       <title>Temperature Differential (ΔT)</title>
       <single>
         <search>
           <query>index=utilities sourcetype=kamstrup:heating (temp1=* AND temp2=*)
-| eval delta_t = temp1 - temp2
-| stats latest(delta_t) as current_delta
-| eval current_delta = round(current_delta, 1)
-| fields current_delta</query>
+| stats 
+    latest(temp1) as supply_temp,
+    latest(temp2) as return_temp
+| eval delta_t = supply_temp - return_temp
+| eval delta_t = round(delta_t, 1)
+| fields delta_t</query>
           <earliest>-5m</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
