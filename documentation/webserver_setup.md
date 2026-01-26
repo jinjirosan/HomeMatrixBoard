@@ -46,7 +46,7 @@ app = Flask(__name__)
 MQTT_BROKER = "172.16.234.55"  # Your MQTT broker IP
 MQTT_PORT = 1883
 MQTT_USER = "sigfoxwebhookhost"
-MQTT_PASSWORD = "system1234"
+MQTT_PASSWORD = "YOUR_PASSWORD_HERE"
 
 def publish_to_mqtt(topic, message):
     try:
@@ -243,7 +243,7 @@ For more detailed API documentation and examples, see [Webhook Integration Guide
    sudo apt install -y mosquitto-clients
    
    # Test publishing
-   mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P system1234 \
+   mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P YOUR_PASSWORD \
        -t "home/displays/wc" -m '{"name":"Shower","duration":15}'
    ```
    For MQTT broker configuration details, see [MQTT Broker Setup](mqtt_broker_setup.md).

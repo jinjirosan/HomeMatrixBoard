@@ -1,8 +1,11 @@
 [Unit]
 Description=MQTT to Splunk Forwarder for Utilities Monitoring
 Documentation=https://github.com/jinjirosan/HomeMatrixBoard
-After=network-online.target
+# Service dependencies - must start after these services
+After=network-online.target haproxy.service
 Wants=network-online.target
+# Require HAProxy to be running - if HAProxy stops, this service stops too
+Requires=haproxy.service
 
 [Service]
 Type=simple
@@ -16,6 +19,7 @@ ExecStart=/usr/bin/python3 /path/to/HomeMatrixBoard/utilities/mqtt_to_splunk.py
 
 # Ensure system Python environment is used
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+# Unbuffered output for immediate logs
 Environment="PYTHONUNBUFFERED=1"
 
 # Restart policy

@@ -66,7 +66,7 @@ port = 8088
 
 [http://mqtt_ingestion]
 disabled = 0
-token = b85b95be-8aa0-49d3-b367-21d9e9192af0
+token = YOUR-HEC-TOKEN-HERE
 indexes = utilities
 sourcetype = mqtt:metrics
 # This is the default sourcetype; script can override
@@ -93,7 +93,7 @@ curl -k https://localhost:8089/services/data/inputs/http/http \
 
 # Test HEC endpoint
 curl -k https://localhost:8088/services/collector/event \
-  -H "Authorization: Splunk b85b95be-8aa0-49d3-b367-21d9e9192af0" \
+  -H "Authorization: Splunk YOUR-HEC-TOKEN-HERE" \
   -d '{"event": "test", "sourcetype": "mqtt:metrics", "index": "utilities"}'
 ```
 

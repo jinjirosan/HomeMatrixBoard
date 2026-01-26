@@ -1,5 +1,35 @@
 # Utilities MQTT-to-Splunk Integration - Changelog
 
+## Version 1.0.1 - Service Dependencies (2026-01-26)
+
+### Service Improvements
+
+#### Systemd Service Dependencies
+- ✅ Added HAProxy as required dependency in systemd service file
+- ✅ Service now ensures HAProxy is running before starting
+- ✅ Automatic shutdown if HAProxy stops (prevents failed ingestion attempts)
+- ✅ Proper startup ordering: network → HAProxy → mqtt-to-splunk
+
+**Changes:**
+```ini
+[Unit]
+After=network-online.target haproxy.service
+Requires=haproxy.service
+```
+
+**Benefits:**
+- Prevents service from starting without HAProxy
+- Eliminates connection errors during startup
+- Clean dependency chain visible in `systemctl list-dependencies`
+- Automatic lifecycle management (both services start/stop together)
+
+### Documentation Updates
+- Updated DEPLOYMENT_GUIDE.md with service dependency notes
+- Updated README.md with dependency testing commands
+- Updated HAPROXY_SETUP.md with service integration details
+
+---
+
 ## Version 1.0.0 - Production Release (2026-01-26)
 
 ### Initial Deployment

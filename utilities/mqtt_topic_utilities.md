@@ -87,7 +87,7 @@ Each gateway is configured through its web interface with the following paramete
 MQTT server (host or ip):    172.16.234.55
 MQTT port:                    1883
 MQTT username:                heating_gateway
-MQTT password:                [secure-password]
+MQTT password:                [your-gateway-password]
 MQTT prefix:                  utilities/heating
 MQTT interval (seconds):      30
 Enable encryption (tls):      ☐ (unchecked)
@@ -98,7 +98,7 @@ Enable encryption (tls):      ☐ (unchecked)
 MQTT server (host or ip):    172.16.234.55
 MQTT port:                    1883
 MQTT username:                coldwater_gateway
-MQTT password:                [secure-password]
+MQTT password:                [your-gateway-password]
 MQTT prefix:                  utilities/coldwater
 MQTT interval (seconds):      30
 Enable encryption (tls):      ☐ (unchecked)
@@ -109,7 +109,7 @@ Enable encryption (tls):      ☐ (unchecked)
 MQTT server (host or ip):    172.16.234.55
 MQTT port:                    1883
 MQTT username:                hotwater_gateway
-MQTT password:                [secure-password]
+MQTT password:                [your-gateway-password]
 MQTT prefix:                  utilities/hotwater
 MQTT interval (seconds):      30
 Enable encryption (tls):      ☐ (unchecked)
@@ -206,7 +206,7 @@ mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P <password> -v -t "utilitie
 
 ```bash
 # Subscribe to all utility topics at once
-mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P <password> -v -t "utilities/#"
+mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P YOUR_PASSWORD -v -t "utilities/#"
 ```
 
 ### Test Gateway Authentication
@@ -215,7 +215,7 @@ Test if a gateway can connect with its credentials:
 
 ```bash
 # From broker or local machine
-mosquitto_sub -h 172.16.234.55 -u hotwater_gateway -P <password> -t "utilities/hotwater/#" -v
+mosquitto_sub -h 172.16.234.55 -u hotwater_gateway -P YOUR_GATEWAY_PASSWORD -t "utilities/hotwater/#" -v
 ```
 
 If successful, you'll see `(waiting for messages)` and the connection stays open.
@@ -230,7 +230,7 @@ mosquitto_pub -h 172.16.234.55 -u heating_gateway -P <password> \
   -t "utilities/heating/test" -m '{"test": true, "timestamp": "2026-01-24T10:30:45Z"}'
 
 # Subscribe to verify (in another terminal)
-mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P <password> \
+mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P YOUR_PASSWORD \
   -v -t "utilities/heating/#"
 ```
 
@@ -307,7 +307,7 @@ To change password for existing user:
 sudo mosquitto_passwd /etc/mosquitto/passwd heating_gateway
 
 # Non-interactive
-sudo mosquitto_passwd -b /etc/mosquitto/passwd heating_gateway NewPassword123
+sudo mosquitto_passwd -b /etc/mosquitto/passwd heating_gateway YOUR_NEW_PASSWORD
 
 # Restart after password change
 sudo systemctl restart mosquitto

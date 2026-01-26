@@ -349,7 +349,7 @@ listen stats
 2. **Add authentication to stats:**
 ```
 listen stats
-    stats auth admin:secure_password
+    stats auth admin:YOUR_SECURE_PASSWORD
 ```
 
 3. **Enable SSL to indexers (if needed):**
@@ -434,6 +434,48 @@ SPLUNK_HEC_URL = "https://127.0.0.1:8088/services/collector/event"
 ```
 
 No changes needed in the script - HAProxy handles all load balancing and failover automatically!
+
+### Service Dependencies
+
+The `mqtt-to-splunk.service` systemd unit includes HAProxy as a required dependency:
+
+```ini
+[Unit]
+Description=MQTT to Splunk Forwarder for Utilities Monitoring
+After=network-online.target haproxy.service
+Requires=haproxy.service
+```
+
+**What this means:**
+- mqtt-to-splunk service will **only start after** HAProxy is running
+- If HAProxy stops or fails, mqtt-to-splunk will **automatically stop**
+- When HAProxy restarts, mqtt-to-splunk can **automatically restart**
+- Prevents connection errors and failed HEC submissions
+
+**Testing the dependency:**
+
+```bash
+# Test 1: Stop HAProxy - mqtt-to-splunk should also stop
+sudo systemctl stop haproxy
+sudo systemctl status mqtt-to-splunk
+# Expected: inactive (dead)
+
+# Test 2: Start HAProxy - mqtt-to-splunk should start
+sudo systemctl start haproxy
+sleep 2
+sudo systemctl status mqtt-to-splunk
+# Expected: active (running)
+
+# Test 3: View dependency chain
+systemctl list-dependencies mqtt-to-splunk
+# Should show haproxy.service in the tree
+
+# Test 4: Check what depends on HAProxy
+systemctl list-dependencies haproxy --reverse
+# Should show mqtt-to-splunk.service
+```
+
+This ensures a robust startup sequence and prevents orphaned services!
 
 ## Logs
 

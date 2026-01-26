@@ -398,7 +398,7 @@ Here's a complete example for adding a "Kitchen" display:
 ```bash
 # Add user
 sudo mosquitto_passwd /etc/mosquitto/passwd kitchen_display
-# Password: kitchen123
+# Enter password when prompted
 
 # ACL entry
 user kitchen_display
@@ -419,12 +419,12 @@ topic_mapping = {
 ```python
 secrets = {
     'ssid': 'AirMAX-IoT',
-    'password': 'wifi_password',
+    'password': 'your_wifi_password',
     'mqtt_broker': '172.16.234.55',
     'mqtt_port': 1883,
     'mqtt_topic': 'home/displays/kitchen',
     'mqtt_user': 'kitchen_display',
-    'mqtt_password': 'kitchen123',
+    'mqtt_password': 'your_mqtt_password',
     'test_mode': False
 }
 ```

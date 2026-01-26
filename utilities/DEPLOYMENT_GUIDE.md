@@ -121,7 +121,7 @@ MQTT_PASSWORD = "your_actual_password"
 
 # Use HAProxy on localhost
 SPLUNK_HEC_URL = "https://127.0.0.1:8088/services/collector/event"
-SPLUNK_HEC_TOKEN = "b85b95be-8aa0-49d3-b367-21d9e9192af0"
+SPLUNK_HEC_TOKEN = "YOUR-HEC-TOKEN-HERE"  # Replace with your actual HEC token
 SPLUNK_INDEX = "utilities"
 SPLUNK_VERIFY_SSL = False  # False for self-signed certs
 ```
@@ -158,6 +158,11 @@ Group=splunk
 WorkingDirectory=/opt/splunk/etc/apps/HomeMatrixBoard/utilities
 ExecStart=/usr/bin/python3 /opt/splunk/etc/apps/HomeMatrixBoard/utilities/mqtt_to_splunk.py
 ```
+
+**Note:** The service file includes dependencies on HAProxy:
+- `After=haproxy.service` - Ensures mqtt-to-splunk starts after HAProxy
+- `Requires=haproxy.service` - If HAProxy stops, mqtt-to-splunk stops too
+- This prevents the service from attempting to send data when HAProxy is unavailable
 
 ### 8. Install and Start Service
 
@@ -260,7 +265,7 @@ sudo /usr/bin/python3 -m pip install paho-mqtt requests
 **Solution:**
 - Code 4 = Bad username or password
 - Verify credentials in `splunk_credentials.py`
-- Test manually: `mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P password -t "utilities/#"`
+- Test manually: `mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P YOUR_PASSWORD -t "utilities/#"`
 
 ### ❌ HEC Connection Failed
 
@@ -284,7 +289,7 @@ sudo /usr/bin/python3 -m pip install paho-mqtt requests
 ## Service Management
 
 ```bash
-# Start
+# Start (HAProxy must be running first)
 sudo systemctl start mqtt-to-splunk
 
 # Stop
@@ -304,6 +309,10 @@ sudo systemctl enable mqtt-to-splunk
 
 # View logs
 sudo journalctl -u mqtt-to-splunk -f
+
+# Check service dependencies
+systemctl list-dependencies mqtt-to-splunk
+# Should show haproxy.service as a dependency
 ```
 
 ## Testing Checklist

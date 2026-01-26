@@ -84,7 +84,7 @@ Subscribed to topic: utilities/energy/#
 
 **If you see Python 2.7 in the output, you're using the wrong Python!**
 
-### 4. Install as Service (Heavy Forwarder)
+### 4. Install as Service
 
 **Edit the service file to use system Python 3:**
 
@@ -93,10 +93,10 @@ Subscribed to topic: utilities/energy/#
 sudo nano mqtt-to-splunk.service
 
 # Update these lines:
-# User=splunk (or your user)
-# Group=splunk (or your group)
-# WorkingDirectory=/opt/splunk/etc/apps/HomeMatrixBoard/utilities
-# ExecStart=/usr/bin/python3 /opt/splunk/etc/apps/HomeMatrixBoard/utilities/mqtt_to_splunk.py
+# User=root (or your user)
+# Group=root (or your group)
+# WorkingDirectory=/opt/HomeMatrixBoard/utilities
+# ExecStart=/usr/bin/python3 /opt/HomeMatrixBoard/utilities/mqtt_to_splunk.py
 
 # Copy to systemd
 sudo cp mqtt-to-splunk.service /etc/systemd/system/
@@ -111,10 +111,34 @@ sudo systemctl status mqtt-to-splunk
 
 # Verify it's using Python 3:
 sudo journalctl -u mqtt-to-splunk -n 20 | grep "Python Version"
-# Should show: Python Version: 3.9.7
+# Should show: Python Version: 3.13.5
 
 # View logs
 sudo journalctl -u mqtt-to-splunk -f
+```
+
+**Service Dependencies:**
+
+The service file includes HAProxy as a required dependency:
+- `After=haproxy.service` - Service starts after HAProxy is running
+- `Requires=haproxy.service` - If HAProxy stops, this service stops too
+
+This ensures the service won't attempt to send data when HAProxy is unavailable.
+
+```bash
+# Test dependency behavior
+sudo systemctl stop haproxy
+sudo systemctl status mqtt-to-splunk
+# Should show: inactive (dead) - stopped because HAProxy stopped
+
+sudo systemctl start haproxy
+sleep 2
+sudo systemctl status mqtt-to-splunk
+# Should show: active (running) - started with HAProxy
+
+# View dependency chain
+systemctl list-dependencies mqtt-to-splunk
+# Should show haproxy.service in the tree
 ```
 
 ## Architecture
@@ -267,7 +291,7 @@ sudo /usr/bin/python3 -m pip install paho-mqtt requests
 ls -la splunk_credentials.py
 
 # Test MQTT connection manually
-mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P <password> -v -t "utilities/#"
+mosquitto_sub -h 172.16.234.55 -u splunk_forwarder -P YOUR_PASSWORD -v -t "utilities/#"
 
 # Test Splunk HEC through HAProxy
 curl -k https://127.0.0.1:8088/services/collector/event \
