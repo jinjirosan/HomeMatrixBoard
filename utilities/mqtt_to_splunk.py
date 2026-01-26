@@ -228,16 +228,19 @@ def on_message(client, userdata, msg):
         
         logger.debug(f"Received message on topic '{topic}': {payload}")
         
-        # Parse JSON payload
+        # Parse JSON payload or wrap raw values
         try:
             data = json.loads(payload)
+            # If it's a simple value (not a dict), wrap it with field name from topic
+            if not isinstance(data, dict):
+                # Extract field name from topic (last part)
+                field_name = topic.split('/')[-1]
+                data = {field_name: data}
         except json.JSONDecodeError:
-            logger.warning(f"Invalid JSON payload on topic '{topic}': {payload}")
-            # Still send to Splunk as raw text
-            data = {
-                "raw_message": payload,
-                "parse_error": "Invalid JSON"
-            }
+            # Not JSON at all - wrap as raw value with field name from topic
+            logger.debug(f"Non-JSON payload on topic '{topic}', wrapping value")
+            field_name = topic.split('/')[-1]
+            data = {field_name: payload}
         
         # Determine sourcetype and source based on topic
         sourcetype = determine_sourcetype(topic)

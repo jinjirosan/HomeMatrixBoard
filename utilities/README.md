@@ -122,14 +122,25 @@ sudo journalctl -u mqtt-to-splunk -f
 ```
 Smart Gateways (Kamstrup, Elster, EmonPi)
     ↓
-MQTT Broker (172.16.234.55)
+MQTT Broker (172.16.234.55:1883)
     ↓
-mqtt_to_splunk.py (runs on Heavy Forwarder)
-    ↓
-Splunk HEC (Indexer Cluster)
-    ↓
-utilities index
+Debian 12 VM
+  ├─ mqtt_to_splunk.py (subscribes to MQTT)
+  └─ HAProxy (127.0.0.1:8088)
+      ├─→ Indexer1 (172.16.234.48:8088)
+      └─→ Indexer2 (172.16.234.49:8088)
+          ↓
+      Indexer Cluster (with replication)
+          ↓
+      utilities index
 ```
+
+### High Availability Features
+
+- **HAProxy Load Balancer** - Distributes HEC traffic across both indexers
+- **Automatic Failover** - If one indexer fails, traffic routes to the other
+- **Health Monitoring** - Checks indexer health every 5 seconds
+- **No Single Point of Failure** - Both ingestion and storage are redundant
 
 ## Data Flow
 
@@ -143,6 +154,29 @@ The script maps MQTT topics to manufacturer-specific sourcetypes:
 | `utilities/hotwater/#` | `kamstrup:hotwater` | Kamstrup hot water valve sensor |
 | `utilities/coldwater/#` | `elster:coldwater` | Elster cold water valve sensor |
 | `utilities/energy/#` | `emonpi:energy` | EmonPi energy monitor |
+
+### Payload Handling
+
+The script automatically handles different payload formats:
+
+1. **JSON Objects** - Passed through as-is
+   ```json
+   {"temperature": 68.5, "pressure": 3.2}
+   ```
+
+2. **Raw Values** - Wrapped with field name from topic
+   - Topic: `utilities/coldwater/watermeter/reading/pulse_count`
+   - Payload: `123`
+   - Becomes: `{"pulse_count": 123}`
+
+3. **Plain Text** - Wrapped with field name from topic
+   - Topic: `utilities/coldwater/watermeter/smart_gateways/mac_address`
+   - Payload: `E0:8C:FE:33:D5:14`
+   - Becomes: `{"mac_address": "E0:8C:FE:33:D5:14"}`
+
+All events are enriched with:
+- `mqtt_topic` - Full MQTT topic path
+- `received_at` - Timestamp when received by script
 
 ### Fallback Behavior
 
@@ -284,8 +318,10 @@ sudo systemctl status mqtt-to-splunk
 
 ## Related Documentation
 
+- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Complete deployment walkthrough
+- [HAPROXY_SETUP.md](HAPROXY_SETUP.md) - HAProxy load balancer configuration
+- [SPLUNK_SETUP.md](SPLUNK_SETUP.md) - Splunk HEC and index configuration
 - [mqtt_topic_utilities.md](mqtt_topic_utilities.md) - Complete MQTT integration guide
-- [SPLUNK_SETUP.md](SPLUNK_SETUP.md) - Splunk configuration details
 - [../documentation/mqtt_broker_setup.md](../documentation/mqtt_broker_setup.md) - MQTT broker configuration
 
 ## Support

@@ -1,43 +1,111 @@
-# Quick Deployment Guide - Heavy Forwarder
+# Quick Deployment Guide - Debian 12 VM
+
+## Overview
+
+This guide walks through deploying the MQTT-to-Splunk forwarder on a **dedicated Debian 12 (Bookworm) VM** with HAProxy for high availability.
+
+## Architecture
+
+```
+MQTT Broker (172.16.234.55)
+    ↓
+Debian 12 VM (mqtt_to_splunk.py + HAProxy)
+    ↓
+HAProxy Load Balancer (127.0.0.1:8088)
+    ├─→ Indexer1 (172.16.234.48:8088)
+    └─→ Indexer2 (172.16.234.49:8088)
+```
+
+## Prerequisites
+
+- Fresh Debian 12 (Bookworm) VM
+- Minimum specs: 1 vCPU, 512MB RAM, 10GB disk
+- Network access to MQTT broker and Splunk indexers
+- Root or sudo access
 
 ## Prerequisites Check
 
 ```bash
+# Verify OS version
+cat /etc/debian_version
+# Expected: 12.x
+
 # Verify system Python 3
 /usr/bin/python3 --version
-# Expected: Python 3.9.7
+# Expected: Python 3.11.x or higher
 
 # Verify pip is available
 /usr/bin/python3 -m pip --version
-
-# Check Splunk's Python (DO NOT USE THIS)
-/opt/splunk/bin/python --version
-# Expected: Python 2.7.x (we're NOT using this!)
 ```
 
 ## Installation Steps
 
-### 1. Clone/Copy Repository to Heavy Forwarder
+### 1. Update System and Install Dependencies
 
 ```bash
-cd /opt/splunk/etc/apps/
-# Or wherever you want to install
+# Update system
+apt update && apt upgrade -y
+
+# Install required packages
+apt install -y python3 python3-pip git haproxy socat
+```
+
+### 2. Clone Repository
+
+```bash
+cd /opt
 git clone https://github.com/jinjirosan/HomeMatrixBoard.git
 cd HomeMatrixBoard/utilities
 ```
 
-### 2. Install Python Dependencies
+### 3. Install Python Dependencies
 
 ```bash
-# Install for system Python 3 (NOT Splunk's Python)
-/usr/bin/python3 -m pip install --user -r requirements.txt
+# Debian 12 uses externally-managed environment
+# Install with --break-system-packages flag (safe for dedicated VM)
+pip3 install -r requirements.txt --break-system-packages
 
 # Verify installation
 /usr/bin/python3 -c "import paho.mqtt.client; print('✓ paho-mqtt')"
 /usr/bin/python3 -c "import requests; print('✓ requests')"
 ```
 
-### 3. Configure Credentials
+### 4. Configure HAProxy Load Balancer
+
+See [HAPROXY_SETUP.md](HAPROXY_SETUP.md) for complete details.
+
+**Quick setup:**
+
+```bash
+# Backup original config
+cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.orig
+
+# Create HAProxy config
+nano /etc/haproxy/haproxy.cfg
+```
+
+Add the frontend and backend configuration (see HAPROXY_SETUP.md for full config), using your indexer IPs:
+- Indexer1: 172.16.234.48:8088
+- Indexer2: 172.16.234.49:8088
+
+```bash
+# Validate config
+haproxy -c -f /etc/haproxy/haproxy.cfg
+
+# Start HAProxy
+systemctl restart haproxy
+systemctl enable haproxy
+systemctl status haproxy
+```
+
+**Test HAProxy:**
+```bash
+curl -k https://127.0.0.1:8088/services/collector/event \
+  -H "Authorization: Splunk YOUR-HEC-TOKEN" \
+  -d '{"event": "test", "index": "utilities"}'
+```
+
+### 5. Configure Script Credentials
 
 ```bash
 cp splunk_credentials.py.template splunk_credentials.py
@@ -51,13 +119,14 @@ MQTT_PORT = 1883
 MQTT_USER = "splunk_forwarder"
 MQTT_PASSWORD = "your_actual_password"
 
-SPLUNK_HEC_URL = "https://indexer1.yourdomain.com:8088/services/collector/event"
+# Use HAProxy on localhost
+SPLUNK_HEC_URL = "https://127.0.0.1:8088/services/collector/event"
 SPLUNK_HEC_TOKEN = "b85b95be-8aa0-49d3-b367-21d9e9192af0"
 SPLUNK_INDEX = "utilities"
-SPLUNK_VERIFY_SSL = True  # False for self-signed certs (dev only)
+SPLUNK_VERIFY_SSL = False  # False for self-signed certs
 ```
 
-### 4. Test the Script
+### 6. Test the Script
 
 ```bash
 # Test run (Ctrl+C to stop)
@@ -75,7 +144,7 @@ SPLUNK_VERIFY_SSL = True  # False for self-signed certs (dev only)
 # ...
 ```
 
-### 5. Configure Systemd Service
+### 7. Configure Systemd Service
 
 ```bash
 # Edit service file
@@ -90,7 +159,7 @@ WorkingDirectory=/opt/splunk/etc/apps/HomeMatrixBoard/utilities
 ExecStart=/usr/bin/python3 /opt/splunk/etc/apps/HomeMatrixBoard/utilities/mqtt_to_splunk.py
 ```
 
-### 6. Install and Start Service
+### 8. Install and Start Service
 
 ```bash
 # Copy to systemd
@@ -113,7 +182,7 @@ sudo journalctl -u mqtt-to-splunk -n 30 | grep "Python Version"
 # Expected: Python Version: 3.9.7
 ```
 
-### 7. Monitor Logs
+### 9. Monitor Logs
 
 ```bash
 # Real-time logs
@@ -126,7 +195,7 @@ sudo journalctl -u mqtt-to-splunk -n 100
 sudo journalctl -u mqtt-to-splunk | grep -i error
 ```
 
-### 8. Verify Data in Splunk
+### 10. Verify Data in Splunk
 
 On Splunk Search Head:
 
