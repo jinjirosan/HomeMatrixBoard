@@ -37,10 +37,10 @@
         <option name="drilldown">none</option>
         <option name="numberPrecision">0.01</option>
         <option name="rangeColors">["0x6DB7C6","0x65A637","0xF7BC38","0xF58F39","0xD93F3C"]</option>
-        <option name="rangeValues">[0.5,2,5,10]</option>
+        <option name="rangeValues">[500,2000,5000,10000]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">CURRENT POWER (kW)</option>
-        <option name="unit">kW</option>
+        <option name="underLabel">CURRENT POWER (W)</option>
+        <option name="unit">W</option>
         <option name="useColors">1</option>
       </single>
     </panel>
@@ -66,7 +66,7 @@
         <option name="underLabel">TODAY'S COST (€)</option>
         <option name="unit">€</option>
         <option name="useColors">1</option>
-        <option name="useThousandSeparators">1</option>
+        <option name="useThousandSeparators">0</option>
       </single>
     </panel>
     
@@ -91,7 +91,7 @@
         <option name="underLabel">TODAY (kWh)</option>
         <option name="unit">kWh</option>
         <option name="useColors">1</option>
-        <option name="useThousandSeparators">1</option>
+        <option name="useThousandSeparators">0</option>
       </single>
     </panel>
     
@@ -135,10 +135,10 @@
         <option name="drilldown">none</option>
         <option name="numberPrecision">0.01</option>
         <option name="rangeColors">["0x6DB7C6","0x65A637","0xF7BC38","0xF58F39","0xD93F3C"]</option>
-        <option name="rangeValues">[2,5,10,15]</option>
+        <option name="rangeValues">[2000,5000,10000,15000]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">PEAK POWER (kW)</option>
-        <option name="unit">kW</option>
+        <option name="underLabel">PEAK POWER (W)</option>
+        <option name="unit">W</option>
         <option name="useColors">1</option>
       </single>
     </panel>
@@ -162,7 +162,7 @@
           <refreshType>delay</refreshType>
         </search>
         <option name="charting.axisTitleX.text">Time</option>
-        <option name="charting.axisTitleY.text">Power (kW)</option>
+        <option name="charting.axisTitleY.text">Power (W)</option>
         <option name="charting.chart">line</option>
         <option name="charting.chart.showDataLabels">none</option>
         <option name="charting.drilldown">none</option>
@@ -292,7 +292,7 @@
         <option name="refresh.display">progressbar</option>
         <format type="number" field="peak_power">
           <option name="precision">2</option>
-          <option name="unit">kW</option>
+          <option name="unit">W</option>
         </format>
       </table>
     </panel>
@@ -363,9 +363,9 @@
 | eval hour = strftime(_time, "%H:00")
 | eval avg_power_kW = round(avg_power_kW, 2)
 | eval usage_level = case(
-    avg_power_kW &lt; 1, "Low",
-    avg_power_kW &lt; 3, "Normal",
-    avg_power_kW &lt; 5, "High",
+    avg_power_kW &lt; 1000, "Low",
+    avg_power_kW &lt; 3000, "Normal",
+    avg_power_kW &lt; 5000, "High",
     1=1, "Very High"
 )
 | table hour, avg_power_kW, usage_level
@@ -383,7 +383,7 @@
         </format>
         <format type="number" field="avg_power_kW">
           <option name="precision">2</option>
-          <option name="unit">kW</option>
+          <option name="unit">W</option>
         </format>
       </table>
     </panel>
@@ -435,7 +435,7 @@
           <refreshType>delay</refreshType>
         </search>
         <option name="charting.axisTitleX.text">Hour of Day</option>
-        <option name="charting.axisTitleY.text">Power (kW)</option>
+        <option name="charting.axisTitleY.text">Power (W)</option>
         <option name="charting.chart">column</option>
         <option name="charting.chart.showDataLabels">none</option>
         <option name="charting.drilldown">none</option>
@@ -498,7 +498,7 @@
         <option name="underLabel">30-DAY ESTIMATE (€0.30/kWh)</option>
         <option name="unit">€</option>
         <option name="useColors">1</option>
-        <option name="useThousandSeparators">1</option>
+        <option name="useThousandSeparators">0</option>
       </single>
     </panel>
   </row>
