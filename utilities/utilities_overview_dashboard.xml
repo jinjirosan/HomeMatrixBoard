@@ -61,7 +61,7 @@
       </single>
     </panel>
     <panel>
-      <title>💧 Hot Water</title>
+      <title>♨️ Hot Water</title>
       <single>
         <search>
           <query>index=utilities sourcetype=kamstrup:hotwater
@@ -199,12 +199,12 @@
       <table>
         <search>
           <query>| makeresults 
-| eval utilities="🔥 Heating,💧 Hot Water,🚰 Cold Water,⚡ Energy"
+| eval utilities="🔥 Heating,♨️ Hot Water,🚰 Cold Water,⚡ Energy"
 | makemv delim="," utilities
 | mvexpand utilities
 | eval sourcetype=case(
     utilities=="🔥 Heating", "kamstrup:heating",
-    utilities=="💧 Hot Water", "kamstrup:hotwater",
+    utilities=="♨️ Hot Water", "kamstrup:hotwater",
     utilities=="🚰 Cold Water", "elster:coldwater",
     utilities=="⚡ Energy", "emonpi:energy",
     1=1, "unknown"
@@ -256,7 +256,7 @@
   </row>
   <row>
     <panel>
-      <title>📈 24-Hour Usage Trends (All Utilities)</title>
+      <title>📈 24-Hour Activity Intensity (Normalized to Max)</title>
       <chart>
         <search>
           <query>index=utilities sourcetype IN (kamstrup:hotwater, elster:coldwater, kamstrup:heating)
@@ -266,23 +266,39 @@
     sourcetype=="kamstrup:heating", "Heating",
     1=1, "Unknown"
   )
-| eval usage_value=coalesce(volume, current_value, pulse_count)
-| timechart span=1h latest(usage_value) as reading by utility</query>
+| eval activity_rate=case(
+    utility=="Heating" AND isnotnull(power), power,
+    utility=="Heating" AND isnotnull(flow), flow * 1000,
+    utility=="Hot Water" AND isnotnull(flow), flow * 1000,
+    utility=="Cold Water" AND isnotnull(water_used_last_minute), water_used_last_minute * 60,
+    utility=="Cold Water" AND isnotnull(flow_rate), flow_rate,
+    1=1, 0
+  )
+| bucket _time span=1h
+| stats avg(activity_rate) as avg_rate by _time, utility
+| eventstats max(avg_rate) as max_rate by utility
+| eval activity_intensity = if(max_rate &gt; 0, (avg_rate / max_rate) * 100, 0)
+| eval activity_intensity = round(activity_intensity, 1)
+| timechart span=1h 
+    avg(eval(if(utility=="Heating", activity_intensity, null))) as "Heating",
+    avg(eval(if(utility=="Hot Water", activity_intensity, null))) as "Hot Water",
+    avg(eval(if(utility=="Cold Water", activity_intensity, null))) as "Cold Water"</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
           <refresh>5m</refresh>
           <refreshType>delay</refreshType>
         </search>
         <option name="charting.axisTitleX.text">Time</option>
-        <option name="charting.axisTitleY.text">Reading</option>
-        <option name="charting.chart">area</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Activity Intensity (% of Max)</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.chart">column</option>
         <option name="charting.chart.showDataLabels">none</option>
-        <option name="charting.chart.stackMode">stacked</option>
         <option name="charting.drilldown">none</option>
-        <option name="charting.legend.placement">bottom</option>
-        <option name="charting.lineWidth">2</option>
         <option name="charting.fieldColors">{"Heating": 0xFF5722, "Hot Water": 0x2196F3, "Cold Water": 0x00BCD4}</option>
-        <option name="charting.areaFillOpacity">0.5</option>
+        <option name="charting.legend.placement">right</option>
+        <option name="charting.lineWidth">3</option>
         <option name="refresh.display">progressbar</option>
       </chart>
     </panel>
@@ -510,7 +526,7 @@
     1=1, null()
   )
 | eval utility=case(
-    sourcetype=="kamstrup:hotwater", "💧 Hot Water",
+    sourcetype=="kamstrup:hotwater", "♨️ Hot Water",
     sourcetype=="elster:coldwater", "🚰 Cold Water",
     sourcetype=="kamstrup:heating", "🔥 Heating",
     1=1, "Unknown"
@@ -561,7 +577,7 @@
           <query>index=utilities sourcetype IN (kamstrup:heating, kamstrup:hotwater, elster:coldwater)
 | eval utility=case(
     sourcetype=="kamstrup:heating", "🔥 Heating",
-    sourcetype=="kamstrup:hotwater", "💧 Hot Water",
+    sourcetype=="kamstrup:hotwater", "♨️ Hot Water",
     sourcetype=="elster:coldwater", "🚰 Cold Water",
     1=1, "Unknown"
   )
@@ -604,7 +620,7 @@
           <query>index=utilities sourcetype IN (kamstrup:*, elster:*)
 | eval utility=case(
     sourcetype=="kamstrup:heating", "🔥 Heating",
-    sourcetype=="kamstrup:hotwater", "💧 Hot Water",
+    sourcetype=="kamstrup:hotwater", "♨️ Hot Water",
     sourcetype=="elster:coldwater", "🚰 Cold Water",
     1=1, "⚡ Energy"
   )

@@ -174,86 +174,21 @@
     </panel>
   </row>
   
-  <!-- Row 3: Cost Breakdown -->
+  <!-- Row 3: Daily Consumption and Comparison -->
   <row>
     <panel>
-      <title>💰 Cost Breakdown (Peak vs Off-Peak)</title>
+      <title>📊 Daily Consumption (Last 7 Days)</title>
       <chart>
         <search>
-          <query>index=summary_utilities sourcetype=energy_metrics earliest=@d
-| stats 
-    latest(pulse_peak_cost) as peak_cost_eur,
-    latest(pulse_off_peak_cost) as off_peak_cost_eur
-    by _day
-| eval 
-    peak_cost_eur = round(peak_cost_eur, 2),
-    off_peak_cost_eur = round(off_peak_cost_eur, 2)
-| eval "Peak Hours (7-23)" = peak_cost_eur
-| eval "Off-Peak (23-7)" = off_peak_cost_eur
-| table "Peak Hours (7-23)", "Off-Peak (23-7)"</query>
-          <earliest>@d</earliest>
-          <latest>now</latest>
-          <refresh>5m</refresh>
-          <refreshType>delay</refreshType>
-        </search>
-        <option name="charting.axisTitleX.text">Cost Type</option>
-        <option name="charting.axisTitleY.text">Cost (€)</option>
-        <option name="charting.chart">column</option>
-        <option name="charting.chart.showDataLabels">all</option>
-        <option name="charting.drilldown">none</option>
-        <option name="charting.legend.placement">none</option>
-        <option name="charting.fieldColors">{"Peak Hours (7-23)": 0xFF9800, "Off-Peak (23-7)": 0x2196F3}</option>
-        <option name="refresh.display">progressbar</option>
-      </chart>
-    </panel>
-    
-    <panel>
-      <title>📊 Daily Cost Trend (Last 7 Days)</title>
-      <chart>
-        <search>
-          <query>index=summary_utilities sourcetype=energy_metrics earliest=-7d
-| stats latest(pulse_total_cost) as total_cost_eur by _day
-| eval total_cost_eur = round(total_cost_eur, 2)
+          <query>index=summary_utilities sourcetype=energy_metrics
+| eval _day = strftime(_time, "%Y-%m-%d")
+| stats sum(total_power_wh_pulse) as total_energy_wh by _day
+| eval daily_kWh = round(total_energy_wh / 1000, 2)
 | eval date = strftime(strptime(_day, "%Y-%m-%d"), "%m/%d")
-| table date, total_cost_eur
+| where _day >= strftime(relative_time(now(), "-7d@d"), "%Y-%m-%d")
+| table date, daily_kWh
 | sort date</query>
-          <earliest>-7d</earliest>
-          <latest>now</latest>
-          <refresh>1h</refresh>
-          <refreshType>delay</refreshType>
-        </search>
-        <option name="charting.axisTitleX.text">Date</option>
-        <option name="charting.axisTitleY.text">Cost (€)</option>
-        <option name="charting.chart">column</option>
-        <option name="charting.chart.showDataLabels">all</option>
-        <option name="charting.drilldown">none</option>
-        <option name="charting.legend.placement">none</option>
-        <option name="charting.fieldColors">{"total_cost_eur": 0x4CAF50}</option>
-        <option name="refresh.display">progressbar</option>
-      </chart>
-    </panel>
-  </row>
-  
-  <!-- Row 4: Time-of-Use Analysis -->
-  <row>
-    <panel>
-      <title>⏰ Time-of-Use Consumption (Peak vs Off-Peak)</title>
-      <chart>
-        <search>
-          <query>index=summary_utilities sourcetype=energy_metrics earliest=-7d
-| stats 
-    sum(if(cron_TOU_peak=1, total_power_wh_pulse, 0)) as peak_energy_wh,
-    sum(if(cron_TOU_off_peak=1, total_power_wh_pulse, 0)) as off_peak_energy_wh
-    by _day
-| eval 
-    peak_kWh = round(peak_energy_wh / 1000, 2),
-    off_peak_kWh = round(off_peak_energy_wh / 1000, 2)
-| eval date = strftime(strptime(_day, "%Y-%m-%d"), "%m/%d")
-| eval "Peak Hours" = peak_kWh
-| eval "Off-Peak Hours" = off_peak_kWh
-| table date, "Peak Hours", "Off-Peak Hours"
-| sort date</query>
-          <earliest>-7d</earliest>
+          <earliest>-7d@d</earliest>
           <latest>now</latest>
           <refresh>1h</refresh>
           <refreshType>delay</refreshType>
@@ -261,12 +196,82 @@
         <option name="charting.axisTitleX.text">Date</option>
         <option name="charting.axisTitleY.text">Consumption (kWh)</option>
         <option name="charting.chart">column</option>
-        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.showDataLabels">all</option>
         <option name="charting.drilldown">none</option>
-        <option name="charting.legend.placement">bottom</option>
-        <option name="charting.fieldColors">{"Peak Hours": 0xFF9800, "Off-Peak Hours": 0x2196F3}</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"daily_kWh": 0x4CAF50}</option>
         <option name="refresh.display">progressbar</option>
       </chart>
+    </panel>
+    
+    <panel>
+      <title>📈 Today vs Yesterday</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics
+| eval current_time = now()
+| eval current_hour = tonumber(strftime(current_time, "%H"))
+| eval current_minute = tonumber(strftime(current_time, "%M"))
+| eval time_of_day_seconds = (current_hour * 3600) + (current_minute * 60)
+| eval today_start = relative_time(now(), "@d")
+| eval yesterday_start = relative_time(now(), "-1d@d")
+| eval comparison_time = yesterday_start + time_of_day_seconds
+| eval is_today = if(_time >= today_start AND _time &lt;= current_time, 1, 0)
+| eval is_yesterday_comparison = if(_time >= yesterday_start AND _time &lt;= comparison_time, 1, 0)
+| stats 
+    sum(if(is_today=1, total_power_wh_pulse, 0)) as today_energy_wh,
+    sum(if(is_yesterday_comparison=1, total_power_wh_pulse, 0)) as yesterday_energy_wh
+| eval today_kWh = round(today_energy_wh / 1000, 2)
+| eval yesterday_kWh = round(yesterday_energy_wh / 1000, 2)
+| eval diff_kWh = today_kWh - yesterday_kWh
+| eval diff_pct = if(yesterday_kWh > 0, round((diff_kWh / yesterday_kWh) * 100, 1), 0)
+| eval display_value = coalesce(diff_pct, 0)
+| fields display_value</query>
+          <earliest>-1d@d</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0xD93F3C"]</option>
+        <option name="rangeValues">[0]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">vs YESTERDAY (same time) - Green ↓ = Less, Red ↑ = More</option>
+        <option name="unit">%</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>🔮 7-Day Prediction</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics
+| eval _day = strftime(_time, "%Y-%m-%d")
+| stats sum(total_power_wh_pulse) as total_energy_wh by _day
+| eval daily_kWh = total_energy_wh / 1000
+| where _day >= strftime(relative_time(now(), "-7d@d"), "%Y-%m-%d") AND _day &lt; strftime(now(), "%Y-%m-%d")
+| stats avg(daily_kWh) as avg_daily_kWh
+| eval predicted_7d_kWh = round(avg_daily_kWh * 7, 1)
+| eval predicted_7d_kWh = coalesce(predicted_7d_kWh, 0)
+| fields predicted_7d_kWh</query>
+          <earliest>-7d@d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[100,150,200,250]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">NEXT 7 DAYS (based on avg)</option>
+        <option name="unit">kWh</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
     </panel>
   </row>
   
@@ -329,6 +334,7 @@
       <chart>
         <search>
           <query>index=summary_utilities sourcetype=energy_metrics earliest=-30d
+| eval _day = strftime(_time, "%Y-%m-%d")
 | stats sum(total_power_wh_pulse) as total_energy_wh by _day
 | eval daily_kWh = round(total_energy_wh / 1000, 2)
 | eval date = strftime(strptime(_day, "%Y-%m-%d"), "%m/%d")
@@ -453,6 +459,7 @@
       <chart>
         <search>
           <query>index=summary_utilities sourcetype=energy_metrics earliest=-7d
+| eval _day = strftime(_time, "%Y-%m-%d")
 | stats sum(co2_emissions_kg) as total_co2_kg by _day
 | eval total_co2_kg = round(total_co2_kg, 2)
 | eval date = strftime(strptime(_day, "%Y-%m-%d"), "%m/%d")
@@ -481,6 +488,7 @@
       <single>
         <search>
           <query>index=summary_utilities sourcetype=energy_metrics earliest=-30d
+| eval _day = strftime(_time, "%Y-%m-%d")
 | stats latest(pulse_total_cost) as total_cost_eur by _day
 | stats sum(total_cost_eur) as monthly_cost_eur
 | eval monthly_cost_eur = round(monthly_cost_eur, 2)

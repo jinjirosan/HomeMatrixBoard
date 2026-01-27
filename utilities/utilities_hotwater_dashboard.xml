@@ -1,6 +1,6 @@
 <form version="1.1">
-  <label>💧 Hot Water Consumption Dashboard</label>
-  <description>Real-time monitoring of Kamstrup hot water system - Volume, Flow, Temperature, and Power</description>
+  <label>♨️ Hot Water Consumption Dashboard</label>
+  <description>Real-time monitoring of Kamstrup 2200IQ hot water system - Volume, Flow, and Meter Temperature</description>
   <fieldset submitButton="false" autoRun="true">
     <input type="time" token="time_token">
       <label>Time Range</label>
@@ -76,13 +76,13 @@
     </panel>
     
     <panel>
-      <title>Supply Temperature</title>
+      <title>Meter Temperature</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=kamstrup:hotwater temp1=*
-| stats latest(temp1) as supply_temp
-| eval supply_temp = round(supply_temp, 1)
-| fields supply_temp</query>
+          <query>index=utilities sourcetype=kamstrup:hotwater meter_temp=*
+| stats latest(meter_temp) as meter_temp
+| eval meter_temp = round(meter_temp, 1)
+| fields meter_temp</query>
           <earliest>-5m</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
@@ -91,37 +91,14 @@
         <option name="drilldown">none</option>
         <option name="numberPrecision">0.1</option>
         <option name="rangeColors">["0xD93F3C","0xF7BC38","0x65A637","0xF7BC38","0xD93F3C"]</option>
-        <option name="rangeValues">[45,50,60,65]</option>
+        <option name="rangeValues">[0,10,20,30]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">SUPPLY (°C)</option>
+        <option name="underLabel">METER HOUSING (°C)</option>
         <option name="unit">°C</option>
         <option name="useColors">1</option>
       </single>
     </panel>
     
-    <panel>
-      <title>Current Power</title>
-      <single>
-        <search>
-          <query>index=utilities sourcetype=kamstrup:hotwater power=*
-| stats latest(power) as current_power
-| eval current_power = round(current_power, 2)
-| fields current_power</query>
-          <earliest>-5m</earliest>
-          <latest>now</latest>
-          <refresh>$refresh_token$</refresh>
-          <refreshType>delay</refreshType>
-        </search>
-        <option name="drilldown">none</option>
-        <option name="numberPrecision">0.01</option>
-        <option name="rangeColors">["0x6DB7C6","0x65A637","0xF7BC38","0xF58F39","0xD93F3C"]</option>
-        <option name="rangeValues">[0.5,2,4,6]</option>
-        <option name="refresh.display">progressbar</option>
-        <option name="underLabel">POWER (kW)</option>
-        <option name="unit">kW</option>
-        <option name="useColors">1</option>
-      </single>
-    </panel>
   </row>
   
   <!-- Row 2: Flow Rate Timeline -->
@@ -153,18 +130,15 @@
     </panel>
   </row>
   
-  <!-- Row 3: Temperature Monitoring -->
+  <!-- Row 3: Meter Temperature Monitoring -->
   <row>
     <panel>
-      <title>🌡️ Temperature Monitoring (Supply vs Return)</title>
+      <title>🌡️ Meter Temperature Timeline</title>
       <chart>
         <search>
-          <query>index=utilities sourcetype=kamstrup:hotwater (temp1=* OR temp2=*)
-| timechart span=10m 
-    avg(temp1) as "Supply Temp (°C)",
-    avg(temp2) as "Return Temp (°C)"
-| eval "Supply Temp (°C)" = round('Supply Temp (°C)', 1)
-| eval "Return Temp (°C)" = round('Return Temp (°C)', 1)</query>
+          <query>index=utilities sourcetype=kamstrup:hotwater meter_temp=*
+| timechart span=10m avg(meter_temp) as "Meter Temp (°C)"
+| eval "Meter Temp (°C)" = round('Meter Temp (°C)', 1)</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
           <refresh>5m</refresh>
@@ -175,9 +149,9 @@
         <option name="charting.chart">line</option>
         <option name="charting.chart.showDataLabels">none</option>
         <option name="charting.drilldown">none</option>
-        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.legend.placement">none</option>
         <option name="charting.lineWidth">2</option>
-        <option name="charting.fieldColors">{"Supply Temp (°C)": 0xFF5722, "Return Temp (°C)": 0x2196F3}</option>
+        <option name="charting.fieldColors">{"Meter Temp (°C)": 0x4CAF50}</option>
         <option name="refresh.display">progressbar</option>
       </chart>
     </panel>
@@ -324,36 +298,8 @@
     </panel>
   </row>
   
-  <!-- Row 7: Power and Energy -->
+  <!-- Row 7: Efficiency -->
   <row>
-    <panel>
-      <title>⚡ Power Consumption Timeline</title>
-      <chart>
-        <search>
-          <query>index=utilities sourcetype=kamstrup:hotwater power=*
-| timechart span=15m 
-    avg(power) as avg_power,
-    max(power) as peak_power
-| eval avg_power = round(avg_power, 2)
-| eval peak_power = round(peak_power, 2)</query>
-          <earliest>$time_token.earliest$</earliest>
-          <latest>$time_token.latest$</latest>
-          <refresh>5m</refresh>
-          <refreshType>delay</refreshType>
-        </search>
-        <option name="charting.axisTitleX.text">Time</option>
-        <option name="charting.axisTitleY.text">Power (kW)</option>
-        <option name="charting.chart">area</option>
-        <option name="charting.chart.showDataLabels">none</option>
-        <option name="charting.drilldown">none</option>
-        <option name="charting.legend.placement">bottom</option>
-        <option name="charting.fieldColors">{"avg_power": 0xFFC107, "peak_power": 0xFF5722}</option>
-        <option name="charting.areaFillOpacity">0.4</option>
-        <option name="charting.lineWidth">2</option>
-        <option name="refresh.display">progressbar</option>
-      </chart>
-    </panel>
-    
     <panel>
       <title>⭐ Efficiency Score</title>
       <single>
@@ -419,26 +365,21 @@
     </panel>
     
     <panel>
-      <title>🌡️ Temperature Alert Status</title>
+      <title>🌡️ Meter Temperature Status</title>
       <table>
         <search>
-          <query>index=utilities sourcetype=kamstrup:hotwater temp1=*
+          <query>index=utilities sourcetype=kamstrup:hotwater meter_temp=*
 | stats 
-    latest(temp1) as current_temp,
-    min(temp1) as min_temp,
-    avg(temp1) as avg_temp
-| eval status = case(
-    current_temp &lt; 45, "🔴 Too Low - Legionella Risk",
-    current_temp &lt; 50, "🟡 Low - Check Settings",
-    current_temp &gt; 65, "🔴 Too High - Scald Risk",
-    current_temp &gt; 60, "🟡 High - Energy Waste",
-    1=1, "✅ Optimal"
-)
+    latest(meter_temp) as current_temp,
+    min(meter_temp) as min_temp,
+    max(meter_temp) as max_temp,
+    avg(meter_temp) as avg_temp
 | eval current_temp = round(current_temp, 1)
 | eval min_temp = round(min_temp, 1)
+| eval max_temp = round(max_temp, 1)
 | eval avg_temp = round(avg_temp, 1)
-| table status, current_temp, avg_temp, min_temp</query>
-          <earliest>-1h</earliest>
+| table current_temp, avg_temp, min_temp, max_temp</query>
+          <earliest>-24h</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
@@ -446,8 +387,21 @@
         <option name="count">5</option>
         <option name="drilldown">none</option>
         <option name="refresh.display">progressbar</option>
-        <format type="color" field="status">
-          <colorPalette type="map">{"✅ Optimal": #65A637, "🟡 Low - Check Settings": #F7BC38, "🟡 High - Energy Waste": #F7BC38, "🔴 Too Low - Legionella Risk": #D93F3C, "🔴 Too High - Scald Risk": #D93F3C}</colorPalette>
+        <format type="number" field="current_temp">
+          <option name="precision">1</option>
+          <option name="unit">°C</option>
+        </format>
+        <format type="number" field="avg_temp">
+          <option name="precision">1</option>
+          <option name="unit">°C</option>
+        </format>
+        <format type="number" field="min_temp">
+          <option name="precision">1</option>
+          <option name="unit">°C</option>
+        </format>
+        <format type="number" field="max_temp">
+          <option name="precision">1</option>
+          <option name="unit">°C</option>
         </format>
       </table>
     </panel>
