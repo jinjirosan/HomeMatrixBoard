@@ -1,6 +1,17 @@
 <form version="1.1">
   <label>🏠 Utilities Monitoring - Overview Dashboard</label>
   <description>Comprehensive monitoring of Heating, Hot Water, Cold Water, and Energy systems</description>
+  <!-- Row 1: Current Readings for All Utilities -->
+  <!-- Row 2: Heating Valve Status -->
+  <!-- Row 3: System Health Overview -->
+  <!-- Row 4: 24-Hour Usage Trends (Multi-line Chart) -->
+  <!-- Row 5: Flow Rate and Power Monitoring -->
+  <!-- Row 6: Temperature Monitoring -->
+  <!-- Row 7: Daily Consumption Comparison -->
+  <!-- Row 8: Cost Estimation -->
+  <!-- Row 9: Anomaly Detection -->
+  <!-- Row 10: Leak Detection Summary -->
+  <!-- Row 10: Efficiency Metrics -->
   <fieldset submitButton="false" autoRun="true">
     <input type="time" token="time_token">
       <label>Time Range</label>
@@ -18,8 +29,6 @@
       <default>1m</default>
     </input>
   </fieldset>
-  
-  <!-- Row 1: Current Readings for All Utilities -->
   <row>
     <panel>
       <title>🔥 Heating System</title>
@@ -51,7 +60,6 @@
         </drilldown>
       </single>
     </panel>
-    
     <panel>
       <title>💧 Hot Water</title>
       <single>
@@ -83,7 +91,6 @@
         </drilldown>
       </single>
     </panel>
-    
     <panel>
       <title>🚰 Cold Water</title>
       <single>
@@ -114,14 +121,14 @@
         </drilldown>
       </single>
     </panel>
-    
     <panel>
       <title>⚡ Energy Monitor</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=emonpi:energy power=*
-| stats latest(power) as power_kw
-| eval display_value=round(power_kw, 2)
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=-10m
+| where isnotnull(rolling_avg_power)
+| stats latest(rolling_avg_power) as power_watts
+| eval display_value=round(power_watts, 0)
 | fields display_value</query>
           <earliest>-15m</earliest>
           <latest>now</latest>
@@ -129,18 +136,16 @@
           <refreshType>delay</refreshType>
         </search>
         <option name="drilldown">none</option>
-        <option name="numberPrecision">0.01</option>
         <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
-        <option name="rangeValues">[1,3,5]</option>
+        <option name="rangeValues">[800,1100,1300]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">POWER (kW)</option>
-        <option name="unit">kW</option>
+        <option name="underLabel">POWER (W)</option>
+        <option name="unit">W</option>
         <option name="useColors">1</option>
+        <option name="useThousandSeparators">0</option>
       </single>
     </panel>
   </row>
-  
-  <!-- Row 2: Heating Valve Status -->
   <row>
     <panel>
       <title>🔄 Heating Valve Status</title>
@@ -153,11 +158,11 @@
     latest(temp1) as supply_temp,
     latest(temp2) as return_temp
 | eval delta_t = round(supply_temp - return_temp, 1)
-| eval power_active = if(current_power > 0.5, 1, 0)
-| eval flow_active = if(current_flow > 0, 1, 0)
-| eval temp_diff_active = if(delta_t > 5, 1, 0)
+| eval power_active = if(current_power &gt; 0.5, 1, 0)
+| eval flow_active = if(current_flow &gt; 0, 1, 0)
+| eval temp_diff_active = if(delta_t &gt; 5, 1, 0)
 | eval heating_score = power_active + flow_active + temp_diff_active
-| eval valve_status = if(heating_score >= 2, "OPEN", "CLOSED")
+| eval valve_status = if(heating_score &gt;= 2, "OPEN", "CLOSED")
 | eval status_icon = if(valve_status == "OPEN", "🟢 OPEN", "⚫ CLOSED")
 | eval power_indicator = if(power_active == 1, "✓ Power (" + tostring(round(current_power, 1)) + " kW)", "✗ Power")
 | eval flow_indicator = if(flow_active == 1, "✓ Flow (" + tostring(round(current_flow, 3)) + " m³/h)", "✗ Flow")
@@ -188,8 +193,6 @@
       </table>
     </panel>
   </row>
-  
-  <!-- Row 3: System Health Overview -->
   <row>
     <panel>
       <title>System Health Overview</title>
@@ -251,8 +254,6 @@
       </table>
     </panel>
   </row>
-  
-  <!-- Row 4: 24-Hour Usage Trends (Multi-line Chart) -->
   <row>
     <panel>
       <title>📈 24-Hour Usage Trends (All Utilities)</title>
@@ -286,8 +287,6 @@
       </chart>
     </panel>
   </row>
-  
-  <!-- Row 5: Flow Rate and Power Monitoring -->
   <row>
     <panel>
       <title>💨 Real-Time Flow Rates (L/h)</title>
@@ -323,7 +322,6 @@
         <option name="refresh.display">progressbar</option>
       </chart>
     </panel>
-    
     <panel>
       <title>⚡ Power Consumption (kW)</title>
       <chart>
@@ -354,8 +352,6 @@
       </chart>
     </panel>
   </row>
-  
-  <!-- Row 6: Temperature Monitoring -->
   <row>
     <panel>
       <title>🌡️ Temperature Monitoring (Kamstrup Systems)</title>
@@ -390,8 +386,6 @@
       </chart>
     </panel>
   </row>
-  
-  <!-- Row 7: Daily Consumption Comparison -->
   <row>
     <panel>
       <title>📊 Daily Consumption Comparison (Last 7 Days)</title>
@@ -427,8 +421,6 @@
       </chart>
     </panel>
   </row>
-  
-  <!-- Row 8: Cost Estimation -->
   <row>
     <panel>
       <title>💰 Estimated Daily Costs (Last 7 Days)</title>
@@ -466,7 +458,6 @@
         <option name="refresh.display">progressbar</option>
       </chart>
     </panel>
-    
     <panel>
       <title>💵 Total Estimated Cost (Last 30 Days)</title>
       <single>
@@ -505,8 +496,6 @@
       </single>
     </panel>
   </row>
-  
-  <!-- Row 9: Anomaly Detection -->
   <row>
     <panel>
       <title>⚠️ Anomaly Detection - High Flow/Power Alerts</title>
@@ -564,8 +553,6 @@
       </table>
     </panel>
   </row>
-  
-  <!-- Row 10: Leak Detection Summary -->
   <row>
     <panel>
       <title>🚨 Leak Detection Status (All Systems)</title>
@@ -610,7 +597,6 @@
         </format>
       </table>
     </panel>
-    
     <panel>
       <title>📊 System Event Summary (Last Hour)</title>
       <table>
@@ -651,8 +637,6 @@
       </table>
     </panel>
   </row>
-  
-  <!-- Row 10: Efficiency Metrics -->
   <row>
     <panel>
       <title>⭐ Heating Efficiency (Energy per Volume)</title>
@@ -680,7 +664,6 @@
         <option name="useColors">1</option>
       </single>
     </panel>
-    
     <panel>
       <title>📈 Data Ingestion Rate</title>
       <single>
@@ -704,7 +687,6 @@
         <option name="useColors">1</option>
       </single>
     </panel>
-    
     <panel>
       <title>🔌 Active Gateways</title>
       <single>
@@ -725,7 +707,6 @@
         <option name="useColors">1</option>
       </single>
     </panel>
-    
     <panel>
       <title>📡 Average Signal Strength</title>
       <single>
@@ -750,6 +731,4 @@
       </single>
     </panel>
   </row>
-  
 </form>
-

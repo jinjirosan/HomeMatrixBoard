@@ -18,6 +18,7 @@
     <view name="utilities_heating_dashboard" />
     <view name="utilities_hotwater_dashboard" />
     <view name="utilities_coldwater_dashboard" />
+    <view name="utilities_energy_dashboard" />
   </collection>
   
   <collection label="Splunk Health">

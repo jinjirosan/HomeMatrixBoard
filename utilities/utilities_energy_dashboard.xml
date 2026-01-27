@@ -1,0 +1,569 @@
+<form version="1.1">
+  <label>⚡ Energy Monitoring Dashboard</label>
+  <description>Real-time monitoring of EmonPi energy consumption - Power, Cost, Time-of-Use, and CO₂ Emissions</description>
+  <fieldset submitButton="false" autoRun="true">
+    <input type="time" token="time_token">
+      <label>Time Range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+    <input type="dropdown" token="refresh_token">
+      <label>Auto Refresh</label>
+      <choice value="30s">30 seconds</choice>
+      <choice value="1m">1 minute</choice>
+      <choice value="5m">5 minutes</choice>
+      <choice value="0">None</choice>
+      <default>1m</default>
+    </input>
+  </fieldset>
+  
+  <!-- Row 1: Key Metrics -->
+  <row>
+    <panel>
+      <title>Current Power</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics latest=now
+| stats latest(kWh_to_power) as current_power_kW
+| eval current_power_kW = round(current_power_kW, 2)
+| fields current_power_kW</query>
+          <earliest>-5m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x6DB7C6","0x65A637","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[0.5,2,5,10]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">CURRENT POWER (kW)</option>
+        <option name="unit">kW</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Today's Cost</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=@d
+| stats latest(pulse_total_cost) as total_cost_eur
+| eval total_cost_eur = round(total_cost_eur, 2)
+| fields total_cost_eur</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[2,5,10,15]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">TODAY'S COST (€)</option>
+        <option name="unit">€</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Daily Consumption</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=@d
+| stats sum(total_power_wh_pulse) as total_energy_wh
+| eval daily_kWh = round(total_energy_wh / 1000, 2)
+| fields daily_kWh</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[10,20,30,50]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">TODAY (kWh)</option>
+        <option name="unit">kWh</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>CO₂ Emissions Today</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=@d
+| stats sum(co2_emissions_kg) as total_co2_kg
+| eval total_co2_kg = round(total_co2_kg, 2)
+| fields total_co2_kg</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[5,10,15,20]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">CO₂ EMISSIONS (kg)</option>
+        <option name="unit">kg</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>Peak Power Today</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=@d
+| stats max(daily_peak_power) as peak_power_kW
+| eval peak_power_kW = round(peak_power_kW, 2)
+| fields peak_power_kW</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x6DB7C6","0x65A637","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[2,5,10,15]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">PEAK POWER (kW)</option>
+        <option name="unit">kW</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <!-- Row 2: Power Timeline -->
+  <row>
+    <panel>
+      <title>⚡ Power Consumption Timeline (Last 24 Hours)</title>
+      <chart>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics
+| timechart span=15m 
+    avg(kWh_to_power) as avg_power_kW,
+    avg(rolling_avg_power) as rolling_avg_kW
+| eval avg_power_kW = round(avg_power_kW, 2)
+| eval rolling_avg_kW = round(rolling_avg_kW, 2)</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Power (kW)</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="charting.fieldColors">{"avg_power_kW": 0xFF5722, "rolling_avg_kW": 0x9E9E9E}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 3: Cost Breakdown -->
+  <row>
+    <panel>
+      <title>💰 Cost Breakdown (Peak vs Off-Peak)</title>
+      <chart>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=@d
+| stats 
+    latest(pulse_peak_cost) as peak_cost_eur,
+    latest(pulse_off_peak_cost) as off_peak_cost_eur
+    by _day
+| eval 
+    peak_cost_eur = round(peak_cost_eur, 2),
+    off_peak_cost_eur = round(off_peak_cost_eur, 2)
+| eval "Peak Hours (7-23)" = peak_cost_eur
+| eval "Off-Peak (23-7)" = off_peak_cost_eur
+| table "Peak Hours (7-23)", "Off-Peak (23-7)"</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Cost Type</option>
+        <option name="charting.axisTitleY.text">Cost (€)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">all</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"Peak Hours (7-23)": 0xFF9800, "Off-Peak (23-7)": 0x2196F3}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>📊 Daily Cost Trend (Last 7 Days)</title>
+      <chart>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=-7d
+| stats latest(pulse_total_cost) as total_cost_eur by _day
+| eval total_cost_eur = round(total_cost_eur, 2)
+| eval date = strftime(strptime(_day, "%Y-%m-%d"), "%m/%d")
+| table date, total_cost_eur
+| sort date</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Date</option>
+        <option name="charting.axisTitleY.text">Cost (€)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">all</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"total_cost_eur": 0x4CAF50}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 4: Time-of-Use Analysis -->
+  <row>
+    <panel>
+      <title>⏰ Time-of-Use Consumption (Peak vs Off-Peak)</title>
+      <chart>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=-7d
+| stats 
+    sum(if(cron_TOU_peak=1, total_power_wh_pulse, 0)) as peak_energy_wh,
+    sum(if(cron_TOU_off_peak=1, total_power_wh_pulse, 0)) as off_peak_energy_wh
+    by _day
+| eval 
+    peak_kWh = round(peak_energy_wh / 1000, 2),
+    off_peak_kWh = round(off_peak_energy_wh / 1000, 2)
+| eval date = strftime(strptime(_day, "%Y-%m-%d"), "%m/%d")
+| eval "Peak Hours" = peak_kWh
+| eval "Off-Peak Hours" = off_peak_kWh
+| table date, "Peak Hours", "Off-Peak Hours"
+| sort date</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Date</option>
+        <option name="charting.axisTitleY.text">Consumption (kWh)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.fieldColors">{"Peak Hours": 0xFF9800, "Off-Peak Hours": 0x2196F3}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 5: Peak Demand Analysis -->
+  <row>
+    <panel>
+      <title>🔥 Peak Demand Detection (Today)</title>
+      <table>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=@d
+| where is_peak_demand=1
+| eval peak_time = strftime(_time, "%H:%M:%S")
+| eval peak_power = round(daily_peak_power, 2)
+| table peak_time, peak_power
+| sort - peak_power</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">10</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="number" field="peak_power">
+          <option name="precision">2</option>
+          <option name="unit">kW</option>
+        </format>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>📈 Power Variance Analysis</title>
+      <chart>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=-24h
+| where abs(power_variance_pct) > 10
+| timechart span=1h avg(power_variance_pct) as avg_variance_pct
+| eval avg_variance_pct = round(avg_variance_pct, 1)</query>
+          <earliest>-24h</earliest>
+          <latest>now</latest>
+          <refresh>15m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleY.text">Variance from Average (%)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"avg_variance_pct": 0xF44336}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 6: Daily Energy Consumption -->
+  <row>
+    <panel>
+      <title>📊 Daily Energy Consumption (Last 30 Days)</title>
+      <chart>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=-30d
+| stats sum(total_power_wh_pulse) as total_energy_wh by _day
+| eval daily_kWh = round(total_energy_wh / 1000, 2)
+| eval date = strftime(strptime(_day, "%Y-%m-%d"), "%m/%d")
+| table date, daily_kWh
+| sort date</query>
+          <earliest>-30d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Date</option>
+        <option name="charting.axisTitleY.text">Consumption (kWh)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"daily_kWh": 0xFF9800}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 7: Hourly Analysis -->
+  <row>
+    <panel>
+      <title>⏰ Hourly Power Breakdown (Today)</title>
+      <table>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=@d
+| bucket _time span=1h
+| stats avg(kWh_to_power) as avg_power_kW by _time
+| eval hour = strftime(_time, "%H:00")
+| eval avg_power_kW = round(avg_power_kW, 2)
+| eval usage_level = case(
+    avg_power_kW &lt; 1, "Low",
+    avg_power_kW &lt; 3, "Normal",
+    avg_power_kW &lt; 5, "High",
+    1=1, "Very High"
+)
+| table hour, avg_power_kW, usage_level
+| sort hour</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>5m</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">24</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="usage_level">
+          <colorPalette type="map">{"Low": #6DB7C6, "Normal": #65A637, "High": #F7BC38, "Very High": #D93F3C}</colorPalette>
+        </format>
+        <format type="number" field="avg_power_kW">
+          <option name="precision">2</option>
+          <option name="unit">kW</option>
+        </format>
+      </table>
+    </panel>
+    
+    <panel>
+      <title>📅 Weekly Comparison</title>
+      <table>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=-14d
+| eval week = if(_time >= relative_time(now(), "-7d@d"), "This Week", "Last Week")
+| stats sum(total_power_wh_pulse) as total_energy_wh by week
+| eval total_kWh = round(total_energy_wh / 1000, 2)
+| table week, total_kWh
+| sort - week</query>
+          <earliest>-14d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">5</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="number" field="total_kWh">
+          <option name="precision">2</option>
+          <option name="unit">kWh</option>
+        </format>
+      </table>
+    </panel>
+  </row>
+  
+  <!-- Row 8: Average Power by Hour of Day -->
+  <row>
+    <panel>
+      <title>📊 Average Power by Hour of Day</title>
+      <chart>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics
+| eval hour = tonumber(date_hour)
+| stats 
+    avg(kWh_to_power) as avg_power,
+    max(kWh_to_power) as max_power
+    by hour
+| eval avg_power = round(avg_power, 2)
+| eval max_power = round(max_power, 2)
+| sort hour</query>
+          <earliest>$time_token.earliest$</earliest>
+          <latest>$time_token.latest$</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Hour of Day</option>
+        <option name="charting.axisTitleY.text">Power (kW)</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">bottom</option>
+        <option name="charting.fieldColors">{"avg_power": 0xFF9800, "max_power": 0xF44336}</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+  </row>
+  
+  <!-- Row 9: CO₂ Emissions -->
+  <row>
+    <panel>
+      <title>🌍 CO₂ Emissions Trend (Last 7 Days)</title>
+      <chart>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=-7d
+| stats sum(co2_emissions_kg) as total_co2_kg by _day
+| eval total_co2_kg = round(total_co2_kg, 2)
+| eval date = strftime(strptime(_day, "%Y-%m-%d"), "%m/%d")
+| table date, total_co2_kg
+| sort date</query>
+          <earliest>-7d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="charting.axisTitleX.text">Date</option>
+        <option name="charting.axisTitleY.text">CO₂ Emissions (kg)</option>
+        <option name="charting.chart">area</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="charting.fieldColors">{"total_co2_kg": 0x4CAF50}</option>
+        <option name="charting.areaFillOpacity">0.5</option>
+        <option name="charting.lineWidth">2</option>
+        <option name="refresh.display">progressbar</option>
+      </chart>
+    </panel>
+    
+    <panel>
+      <title>💵 Estimated Monthly Cost</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics earliest=-30d
+| stats latest(pulse_total_cost) as total_cost_eur by _day
+| stats sum(total_cost_eur) as monthly_cost_eur
+| eval monthly_cost_eur = round(monthly_cost_eur, 2)
+| fields monthly_cost_eur</query>
+          <earliest>-30d</earliest>
+          <latest>now</latest>
+          <refresh>1h</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.01</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[50,100,150,200]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">30-DAY ESTIMATE (€0.30/kWh)</option>
+        <option name="unit">€</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  
+  <!-- Row 10: Data Status -->
+  <row>
+    <panel>
+      <title>✅ Data Freshness</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics
+| stats latest(_time) as last_event
+| eval seconds_ago = now() - last_event
+| eval status = case(
+    seconds_ago &lt; 300, "Current",
+    seconds_ago &lt; 600, "Recent",
+    seconds_ago &lt; 1800, "Delayed",
+    1=1, "Stale"
+)
+| fields status</query>
+          <earliest>-30m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">["Recent","Delayed","Stale"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">DATA STATUS</option>
+        <option name="useColors">1</option>
+      </single>
+    </panel>
+    
+    <panel>
+      <title>📈 Processing Status</title>
+      <table>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics
+| stats 
+    count as total_events,
+    latest(_time) as last_processed,
+    earliest(_time) as first_processed
+| eval last_processed_time = strftime(last_processed, "%Y-%m-%d %H:%M:%S")
+| eval time_since = now() - last_processed
+| eval status = case(
+    time_since &lt; 600, "🟢 ACTIVE",
+    time_since &lt; 1800, "🟡 DELAYED",
+    1=1, "🔴 STALE"
+)
+| table status, total_events, last_processed_time</query>
+          <earliest>-1h</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">5</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+        <format type="color" field="status">
+          <colorPalette type="map">{"🟢 ACTIVE": #65A637, "🟡 DELAYED": #F7BC38, "🔴 STALE": #D93F3C}</colorPalette>
+        </format>
+      </table>
+    </panel>
+  </row>
+  
+</form>
+
