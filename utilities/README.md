@@ -179,7 +179,11 @@ Debian 12 VM
           ↓
       Indexer Cluster (with replication)
           ↓
-      utilities index
+      utilities index (raw data)
+          ↓
+      Saved Search (energy processing)
+          ↓
+      summary_utilities index (processed metrics)
 ```
 
 ### High Availability Features

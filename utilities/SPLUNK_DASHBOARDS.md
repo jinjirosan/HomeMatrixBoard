@@ -10,7 +10,11 @@ The queries in this document work with data from:
 - **Cold Water**: Elster cold water valve sensor (`sourcetype=elster:coldwater`)
 - **Energy**: EmonPi energy monitor (`sourcetype=emonpi:energy`)
 
-All data is indexed in the `utilities` index.
+**Data Sources:**
+- **Raw Data**: `utilities` index - Contains raw MQTT messages from all gateways
+- **Processed Metrics**: `summary_utilities` index - Contains calculated energy metrics (power, cost, TOU, CO₂) from saved search processing
+
+**Note:** For energy analysis, use `summary_utilities` index with `sourcetype=energy_metrics` for processed metrics (power, cost calculations, time-of-use, CO₂ emissions). Raw pulse counts are in `utilities` index with `sourcetype=emonpi:energy`. See [SPLUNK_SETUP.md](SPLUNK_SETUP.md) for energy processing configuration.
 
 ---
 
@@ -730,6 +734,169 @@ index=utilities sourcetype IN (kamstrup:*) power=*
 ```
 
 **Alert:** Set threshold for `max_power > 10` kW for demand alerts
+
+---
+
+## Energy Metrics Queries (Summary Index)
+
+These queries use processed energy metrics from the `summary_utilities` index. The data is automatically processed by a saved search that calculates power, cost, time-of-use, and CO₂ emissions from raw EmonPi pulse counts.
+
+### Query 16: Current Power Consumption
+
+**Purpose:** Display real-time power consumption from processed metrics
+
+```spl
+index=summary_utilities sourcetype=energy_metrics latest=now
+| stats latest(kWh_to_power) as current_power_kW
+| eval current_power_kW=round(current_power_kW, 2)
+| table current_power_kW
+| rename current_power_kW as "Current Power (kW)"
+```
+
+---
+
+### Query 17: Power Trend (Last 24 Hours)
+
+**Purpose:** Show power consumption trend over the last day
+
+```spl
+index=summary_utilities sourcetype=energy_metrics earliest=-24h
+| timechart span=15m 
+    avg(kWh_to_power) as avg_power_kW,
+    max(kWh_to_power) as max_power_kW,
+    avg(rolling_avg_power) as rolling_avg_kW
+```
+
+---
+
+### Query 18: Daily Cost Breakdown
+
+**Purpose:** Calculate total, peak, and off-peak costs for today
+
+```spl
+index=summary_utilities sourcetype=energy_metrics earliest=@d
+| stats 
+    latest(pulse_total_cost) as total_cost_eur,
+    latest(pulse_peak_cost) as peak_cost_eur,
+    latest(pulse_off_peak_cost) as off_peak_cost_eur
+    by _day
+| eval 
+    total_cost_eur=round(total_cost_eur, 2),
+    peak_cost_eur=round(peak_cost_eur, 2),
+    off_peak_cost_eur=round(off_peak_cost_eur, 2)
+| table _day total_cost_eur peak_cost_eur off_peak_cost_eur
+| rename 
+    _day as "Date",
+    total_cost_eur as "Total Cost (€)",
+    peak_cost_eur as "Peak Hours Cost (€)",
+    off_peak_cost_eur as "Off-Peak Cost (€)"
+```
+
+---
+
+### Query 19: Peak Demand Detection
+
+**Purpose:** Identify when peak power demand occurred today
+
+```spl
+index=summary_utilities sourcetype=energy_metrics earliest=@d
+| where is_peak_demand=1
+| eval peak_time=strftime(_time, "%H:%M:%S")
+| table _time peak_time daily_peak_power
+| rename 
+    _time as "Timestamp",
+    peak_time as "Time",
+    daily_peak_power as "Peak Power (kW)"
+```
+
+---
+
+### Query 20: CO₂ Emissions Today
+
+**Purpose:** Calculate total CO₂ emissions for the day
+
+```spl
+index=summary_utilities sourcetype=energy_metrics earliest=@d
+| stats sum(co2_emissions_kg) as total_co2_kg by _day
+| eval total_co2_kg=round(total_co2_kg, 2)
+| table _day total_co2_kg
+| rename 
+    _day as "Date",
+    total_co2_kg as "CO₂ Emissions (kg)"
+```
+
+---
+
+### Query 21: Time-of-Use Analysis
+
+**Purpose:** Compare peak vs off-peak consumption patterns
+
+```spl
+index=summary_utilities sourcetype=energy_metrics earliest=-7d
+| stats 
+    sum(total_power_wh_pulse) as total_energy_wh,
+    sum(if(cron_TOU_peak=1, total_power_wh_pulse, 0)) as peak_energy_wh,
+    sum(if(cron_TOU_off_peak=1, total_power_wh_pulse, 0)) as off_peak_energy_wh
+    by _day
+| eval 
+    total_kWh=round(total_energy_wh / 1000, 2),
+    peak_kWh=round(peak_energy_wh / 1000, 2),
+    off_peak_kWh=round(off_peak_energy_wh / 1000, 2),
+    peak_pct=round((peak_energy_wh / total_energy_wh) * 100, 1)
+| table _day total_kWh peak_kWh off_peak_kWh peak_pct
+| rename 
+    _day as "Date",
+    total_kWh as "Total (kWh)",
+    peak_kWh as "Peak Hours (kWh)",
+    off_peak_kWh as "Off-Peak (kWh)",
+    peak_pct as "Peak %"
+```
+
+---
+
+### Query 22: Power Variance Analysis
+
+**Purpose:** Identify periods with high power variance (anomalies)
+
+```spl
+index=summary_utilities sourcetype=energy_metrics earliest=-24h
+| where abs(power_variance_pct) > 20
+| eval variance_time=strftime(_time, "%Y-%m-%d %H:%M:%S")
+| table variance_time kWh_to_power rolling_avg_power power_variance_pct
+| rename 
+    variance_time as "Time",
+    kWh_to_power as "Actual Power (kW)",
+    rolling_avg_power as "Rolling Avg (kW)",
+    power_variance_pct as "Variance %"
+| sort - power_variance_pct
+```
+
+---
+
+### Query 23: Weekly Energy Summary
+
+**Purpose:** Weekly overview of energy consumption and costs
+
+```spl
+index=summary_utilities sourcetype=energy_metrics earliest=-7d
+| stats 
+    sum(total_power_wh_pulse) as total_energy_wh,
+    latest(pulse_total_cost) as total_cost_eur,
+    max(daily_peak_power) as max_power_kW,
+    sum(co2_emissions_kg) as total_co2_kg
+    by _day
+| eval 
+    daily_kWh=round(total_energy_wh / 1000, 2),
+    total_cost_eur=round(total_cost_eur, 2),
+    total_co2_kg=round(total_co2_kg, 2)
+| table _day daily_kWh total_cost_eur max_power_kW total_co2_kg
+| rename 
+    _day as "Date",
+    daily_kWh as "Daily Consumption (kWh)",
+    total_cost_eur as "Cost (€)",
+    max_power_kW as "Peak Power (kW)",
+    total_co2_kg as "CO₂ (kg)"
+```
 
 ---
 
