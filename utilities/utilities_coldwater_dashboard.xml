@@ -50,31 +50,59 @@
     </panel>
     
     <panel>
-      <title>Today's Consumption (m³)</title>
+      <title>Current Flow Rate</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=elster:coldwater current_value=*
-    earliest=@d latest=now
-| stats 
-    earliest(current_value) as start_today,
-    latest(current_value) as current_reading
-| eval liters_today=current_reading - start_today
-| eval m3_today=round(liters_today / 1000, 3)
-| fields m3_today</query>
-          <earliest>@d</earliest>
+          <query>index=utilities sourcetype=elster:coldwater water_used_last_minute=*
+| stats latest(water_used_last_minute) as current_flow_lpm
+| eval flow_lph=round(current_flow_lpm * 60, 1)
+| eval status=case(
+    current_flow_lpm = 0, "No Flow",
+    current_flow_lpm &lt; 1, "Light",
+    current_flow_lpm &lt; 5, "Moderate",
+    current_flow_lpm &gt;= 5, "Heavy",
+    1=1, "Unknown"
+  )
+| fields current_flow_lpm, flow_lph, status</query>
+          <earliest>-5m</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
         </search>
         <option name="drilldown">none</option>
-        <option name="numberPrecision">0.001</option>
-        <option name="rangeColors">["0x65A637","0xF7BC38","0xF58F39","0xD93F3C"]</option>
-        <option name="rangeValues">[0.2,0.4,0.6]</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
+        <option name="rangeValues">[0.1,1,5]</option>
         <option name="refresh.display">progressbar</option>
-        <option name="underLabel">CUBIC METERS</option>
-        <option name="unit">m³</option>
+        <option name="underLabel">L/MIN</option>
+        <option name="unit">L/min</option>
         <option name="useColors">1</option>
       </single>
+    </panel>
+    
+    <panel>
+      <title>Leak Detection Status</title>
+      <table>
+        <search>
+          <query>index=utilities sourcetype=elster:coldwater leak_detect=*
+| stats 
+    latest(leak_detect) as current_status,
+    count(eval(leak_detect=1)) as leak_events
+| eval status=case(
+    isnull(current_status) OR current_status=0, "✅ NO LEAK",
+    current_status=1, "🔴 LEAK DETECTED",
+    1=1, "❓ UNKNOWN"
+  )
+| table status, leak_events</query>
+          <earliest>-15m</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="count">1</option>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
     </panel>
     
     <panel>
@@ -113,110 +141,6 @@
           <option name="precision">0</option>
         </format>
       </table>
-    </panel>
-  </row>
-  
-  <!-- Row 2: Flow Rate -->
-  <row>
-    <panel>
-      <title>Current Flow Rate</title>
-      <single>
-        <search>
-          <query>index=utilities sourcetype=elster:coldwater water_used_last_minute=*
-| stats latest(water_used_last_minute) as current_flow_lpm
-| eval flow_lph=round(current_flow_lpm * 60, 1)
-| eval status=case(
-    current_flow_lpm = 0, "No Flow",
-    current_flow_lpm &lt; 1, "Light",
-    current_flow_lpm &lt; 5, "Moderate",
-    current_flow_lpm &gt;= 5, "Heavy",
-    1=1, "Unknown"
-  )
-| fields current_flow_lpm, flow_lph, status</query>
-          <earliest>-5m</earliest>
-          <latest>now</latest>
-          <refresh>$refresh_token$</refresh>
-          <refreshType>delay</refreshType>
-        </search>
-        <option name="drilldown">none</option>
-        <option name="numberPrecision">0.1</option>
-        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xD93F3C"]</option>
-        <option name="rangeValues">[0.1,1,5]</option>
-        <option name="refresh.display">progressbar</option>
-        <option name="underLabel">L/MIN</option>
-        <option name="unit">L/min</option>
-        <option name="useColors">1</option>
-      </single>
-    </panel>
-    
-    <panel>
-      <title>Leak Detection Status</title>
-      <single>
-        <search>
-          <query>index=utilities sourcetype=elster:coldwater leak_detect=*
-| stats 
-    latest(leak_detect) as current_status,
-    count(eval(leak_detect=1)) as leak_events
-| eval status=case(
-    current_status=0, "NO LEAK",
-    current_status=1, "LEAK DETECTED",
-    1=1, "UNKNOWN"
-  )
-| eval display_value=if(current_status=0, 0, 1)
-| fields display_value, status</query>
-          <earliest>-15m</earliest>
-          <latest>now</latest>
-          <refresh>$refresh_token$</refresh>
-          <refreshType>delay</refreshType>
-        </search>
-        <option name="drilldown">none</option>
-        <option name="rangeColors">["0x65A637","0xD93F3C"]</option>
-        <option name="rangeValues">[0.5]</option>
-        <option name="refresh.display">progressbar</option>
-        <option name="underLabel">STATUS</option>
-        <option name="useColors">1</option>
-      </single>
-    </panel>
-    
-    <panel>
-      <title>Gateway Health</title>
-      <single>
-        <search>
-          <query>index=utilities sourcetype=elster:coldwater
-| stats 
-    latest(_time) as last_seen,
-    latest(wifi_rssi) as signal_dbm,
-    count as msg_count
-| eval time_since=now() - last_seen
-| eval status=case(
-    time_since &lt; 120, "ONLINE",
-    time_since &lt; 600, "DELAYED",
-    1=1, "OFFLINE"
-  )
-| eval signal_quality=case(
-    signal_dbm &gt; -50, "Excellent",
-    signal_dbm &gt; -60, "Good",
-    signal_dbm &gt; -70, "Fair",
-    1=1, "Poor"
-  )
-| eval display_value=case(
-    time_since &lt; 120, 100,
-    time_since &lt; 600, 50,
-    1=1, 0
-  )
-| fields display_value, signal_dbm, signal_quality</query>
-          <earliest>-1h</earliest>
-          <latest>now</latest>
-          <refresh>$refresh_token$</refresh>
-          <refreshType>delay</refreshType>
-        </search>
-        <option name="drilldown">none</option>
-        <option name="rangeColors">["0xD93F3C","0xF7BC38","0x65A637"]</option>
-        <option name="rangeValues">[25,75]</option>
-        <option name="refresh.display">progressbar</option>
-        <option name="underLabel">SIGNAL</option>
-        <option name="useColors">1</option>
-      </single>
     </panel>
   </row>
   

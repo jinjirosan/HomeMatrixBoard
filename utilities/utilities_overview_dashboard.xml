@@ -122,6 +122,31 @@
       </single>
     </panel>
     <panel>
+      <title>⚡ Energy Consumption</title>
+      <single>
+        <search>
+          <query>index=summary_utilities sourcetype=energy_metrics
+| stats sum(total_power_wh_pulse) as total_energy_wh
+| eval kWh = round(total_energy_wh / 1000, 1)
+| eval display_value = kWh
+| fields display_value</query>
+          <earliest>@d</earliest>
+          <latest>now</latest>
+          <refresh>$refresh_token$</refresh>
+          <refreshType>delay</refreshType>
+        </search>
+        <option name="drilldown">all</option>
+        <option name="numberPrecision">0.1</option>
+        <option name="rangeColors">["0x65A637","0x6DB7C6","0xF7BC38","0xF58F39","0xD93F3C"]</option>
+        <option name="rangeValues">[10,20,30,40]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="underLabel">TODAY'S CONSUMPTION (kWh)</option>
+        <option name="unit">kWh</option>
+        <option name="useColors">1</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+    <panel>
       <title>⚡ Energy Monitor</title>
       <single>
         <search>
@@ -617,12 +642,13 @@
       <title>📊 System Event Summary (Last Hour)</title>
       <table>
         <search>
-          <query>index=utilities sourcetype IN (kamstrup:*, elster:*)
+          <query>index=utilities sourcetype IN (kamstrup:*, elster:*, emonpi:energy)
 | eval utility=case(
     sourcetype=="kamstrup:heating", "🔥 Heating",
     sourcetype=="kamstrup:hotwater", "♨️ Hot Water",
     sourcetype=="elster:coldwater", "🚰 Cold Water",
-    1=1, "⚡ Energy"
+    sourcetype=="emonpi:energy", "⚡ Energy",
+    1=1, "Other"
   )
 | stats 
     count as total_events,

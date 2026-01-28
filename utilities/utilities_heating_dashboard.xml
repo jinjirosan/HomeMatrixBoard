@@ -165,7 +165,6 @@
 | eval temp_diff_active = if(delta_t > 5, 1, 0)
 | eval heating_score = power_active + flow_active + temp_diff_active
 | eval valve_status = if(heating_score >= 2, "OPEN", "CLOSED")
-| eval display_value = if(valve_status == "OPEN", 1, 0)
 | eval status_detail = case(
     valve_status == "OPEN" AND heating_score == 3, "HEATING (All Indicators)",
     valve_status == "OPEN" AND power_active == 1, "HEATING (Power + Flow/Temp)",
@@ -173,18 +172,16 @@
     heating_score == 1, "STANDBY (1 Indicator)",
     1=1, "OFF (No Activity)"
   )
-| fields display_value, valve_status, status_detail</query>
+| fields valve_status</query>
           <earliest>-5m</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
         </search>
         <option name="drilldown">none</option>
-        <option name="rangeColors">["0x999999","0x65A637"]</option>
-        <option name="rangeValues">[0.5]</option>
         <option name="refresh.display">progressbar</option>
         <option name="underLabel">VALVE STATUS</option>
-        <option name="useColors">1</option>
+        <option name="useColors">0</option>
       </single>
     </panel>
   </row>
@@ -276,27 +273,34 @@
     </panel>
     
     <panel>
-      <title>📐 Temperature Differential (ΔT) Timeline</title>
+      <title>🔄 Valve Open/Closed Timeline</title>
       <chart>
         <search>
           <query>index=utilities sourcetype=kamstrup:heating
-| where isnotnull(temp1) AND isnotnull(temp2)
-| eval delta_t = temp1 - temp2
-| timechart span=10m avg(delta_t) as avg_delta_t
-| eval avg_delta_t = round(avg_delta_t, 1)</query>
+| timechart span=10m 
+    avg(power) as avg_power,
+    avg(flow) as avg_flow,
+    avg(temp1) as avg_temp1,
+    avg(temp2) as avg_temp2
+| eval delta_t = avg_temp1 - avg_temp2
+| eval power_active = if(isnotnull(avg_power) AND avg_power > 0.5, 1, 0)
+| eval flow_active = if(isnotnull(avg_flow) AND avg_flow > 0, 1, 0)
+| eval temp_diff_active = if(isnotnull(delta_t) AND delta_t > 5, 1, 0)
+| eval heating_score = power_active + flow_active + temp_diff_active
+| eval valve_open = if(heating_score >= 2, 1, 0)
+| fields _time valve_open</query>
           <earliest>$time_token.earliest$</earliest>
           <latest>$time_token.latest$</latest>
           <refresh>5m</refresh>
           <refreshType>delay</refreshType>
         </search>
         <option name="charting.axisTitleX.text">Time</option>
-        <option name="charting.axisTitleY.text">ΔT (°C)</option>
-        <option name="charting.chart">line</option>
+        <option name="charting.axisTitleY.text">Valve Open (1 = Open, 0 = Closed)</option>
+        <option name="charting.chart">column</option>
         <option name="charting.chart.showDataLabels">none</option>
         <option name="charting.drilldown">none</option>
         <option name="charting.legend.placement">none</option>
-        <option name="charting.lineWidth">3</option>
-        <option name="charting.fieldColors">{"avg_delta_t": 0x4CAF50}</option>
+        <option name="charting.fieldColors">{"valve_open": 0xFF5722}</option>
         <option name="refresh.display">progressbar</option>
       </chart>
     </panel>
