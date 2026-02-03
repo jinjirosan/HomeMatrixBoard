@@ -150,12 +150,11 @@
       <title>⚡ Energy Monitor</title>
       <single>
         <search>
-          <query>index=summary_utilities sourcetype=energy_metrics earliest=-10m
-| where isnotnull(rolling_avg_power)
-| stats latest(rolling_avg_power) as power_watts
-| eval display_value=round(power_watts, 0)
+          <query>index=summary_utilities sourcetype=energy_metrics latest=now
+| stats latest(kWh_to_power) as current_power_watts
+| eval display_value=round(current_power_watts, 0)
 | fields display_value</query>
-          <earliest>-15m</earliest>
+          <earliest>-5m</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
