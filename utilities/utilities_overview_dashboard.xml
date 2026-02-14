@@ -64,12 +64,11 @@
       <title>♨️ Hot Water</title>
       <single>
         <search>
-          <query>index=utilities sourcetype=kamstrup:hotwater
-| stats 
-    earliest(volume) as start_volume,
-    latest(volume) as end_volume
-| eval consumption_m3 = end_volume - start_volume
-| eval consumption_liters = consumption_m3 * 1000
+          <query>index=utilities sourcetype=kamstrup:hotwater volume=*
+| bucket _time span=1h
+| stats earliest(volume) as start_vol, latest(volume) as end_vol by _time
+| eval hourly_liters = (end_vol - start_vol) * 1000
+| stats sum(hourly_liters) as consumption_liters
 | eval display_value = round(consumption_liters, 0)
 | fields display_value</query>
           <earliest>@d</earliest>
@@ -431,26 +430,37 @@
       <title>📊 Daily Consumption Comparison (Last 7 Days)</title>
       <chart>
         <search>
-          <query>index=utilities sourcetype IN (kamstrup:*, elster:*)
-    earliest=-7d latest=now
+          <query>index=utilities sourcetype IN (kamstrup:hotwater, kamstrup:heating, elster:coldwater)
+    (volume=* OR heat_energy=* OR current_value=*)
+| bucket _time span=1h
+| stats
+    earliest(volume) as v_s, latest(volume) as v_e,
+    earliest(heat_energy) as h_s, latest(heat_energy) as h_e,
+    earliest(current_value) as c_s, latest(current_value) as c_e
+    by _time, sourcetype
+| eval consumption=case(
+    sourcetype=="kamstrup:hotwater", (v_e - v_s) * 1000,
+    sourcetype=="kamstrup:heating", (h_e - h_s) * 1000,
+    sourcetype=="elster:coldwater", c_e - c_s,
+    1=1, 0
+  )
 | eval utility=case(
     sourcetype=="kamstrup:heating", "Heating",
     sourcetype=="kamstrup:hotwater", "Hot Water",
     sourcetype=="elster:coldwater", "Cold Water",
     1=1, "Other"
   )
-| eval usage_metric=coalesce(volume, current_value, pulse_count)
 | bucket _time span=1d
-| stats latest(usage_metric) as daily_reading by _time, utility
+| stats sum(consumption) as daily_consumption by _time, utility
 | eval date=strftime(_time, "%m/%d")
-| chart latest(daily_reading) as reading over date by utility</query>
+| chart sum(daily_consumption) as consumption over date by utility</query>
           <earliest>-7d</earliest>
           <latest>now</latest>
           <refresh>1h</refresh>
           <refreshType>delay</refreshType>
         </search>
         <option name="charting.axisTitleX.text">Date</option>
-        <option name="charting.axisTitleY.text">Daily Reading</option>
+        <option name="charting.axisTitleY.text">Daily Consumption</option>
         <option name="charting.chart">column</option>
         <option name="charting.chart.showDataLabels">none</option>
         <option name="charting.chart.stackMode">default</option>
