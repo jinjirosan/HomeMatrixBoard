@@ -26,11 +26,10 @@
       <single>
         <search>
           <query>index=utilities sourcetype=kamstrup:hotwater volume=*
-| bucket _time span=1d
-| stats 
-    earliest(volume) as start_volume,
-    latest(volume) as end_volume
-| eval consumption_liters = (end_volume - start_volume) * 1000
+| bucket _time span=1h
+| stats earliest(volume) as start_vol, latest(volume) as end_vol by _time
+| eval hourly_liters = (end_vol - start_vol) * 1000
+| stats sum(hourly_liters) as consumption_liters
 | eval consumption_liters = round(consumption_liters, 1)
 | fields consumption_liters</query>
           <earliest>@d</earliest>
@@ -165,12 +164,11 @@
         <search>
           <query>index=utilities sourcetype=kamstrup:hotwater volume=*
     earliest=-30d latest=now
+| bucket _time span=1h
+| stats earliest(volume) as start_vol, latest(volume) as end_vol by _time
+| eval hourly_liters = (end_vol - start_vol) * 1000
 | bucket _time span=1d
-| stats 
-    earliest(volume) as start_volume,
-    latest(volume) as end_volume
-    by _time
-| eval daily_liters = (end_volume - start_volume) * 1000
+| stats sum(hourly_liters) as daily_liters by _time
 | eval date = strftime(_time, "%m/%d")
 | table date, daily_liters
 | eval daily_liters = round(daily_liters, 0)</query>
@@ -207,13 +205,14 @@
 | eval hourly_liters = (end_vol - start_vol) * 1000
 | eval hour = strftime(_time, "%H:00")
 | eval usage_level = case(
+    isnull(hourly_liters) OR hourly_liters &lt; 0, "No data",
     hourly_liters &lt; 10, "Low",
     hourly_liters &lt; 30, "Normal",
     hourly_liters &lt; 60, "High",
     1=1, "Very High"
 )
 | table hour, hourly_liters, usage_level
-| eval hourly_liters = round(hourly_liters, 1)
+| eval hourly_liters = round(coalesce(hourly_liters, 0), 1)
 | sort hour</query>
           <earliest>@d</earliest>
           <latest>now</latest>
@@ -224,7 +223,7 @@
         <option name="drilldown">none</option>
         <option name="refresh.display">progressbar</option>
         <format type="color" field="usage_level">
-          <colorPalette type="map">{"Low": #6DB7C6, "Normal": #65A637, "High": #F7BC38, "Very High": #D93F3C}</colorPalette>
+          <colorPalette type="map">{"No data": #999999, "Low": #6DB7C6, "Normal": #65A637, "High": #F7BC38, "Very High": #D93F3C}</colorPalette>
         </format>
         <format type="number" field="hourly_liters">
           <option name="precision">1</option>
