@@ -103,7 +103,7 @@ For detailed security information, see [Security Guide](security.md).
 - **Technology**: Flask (Python)
 - **WSGI Server**: Gunicorn
 - **Reverse Proxy**: Nginx
-- **Port**: 5000 (internal), 80/52341 (external)
+- **Port**: **5000** (Gunicorn / Flask, internal), **52341** (Nginx, external in documented setup). Public URLs and Spotify redirect URI use the Nginx port, not 5000.
 - **Features**:
   - Webhook endpoint: `/sigfox`
   - Spotify endpoints: `/spotify/{target}`, `/spotify/all`, `/spotify/auth`

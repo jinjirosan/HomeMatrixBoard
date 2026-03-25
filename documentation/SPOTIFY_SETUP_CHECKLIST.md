@@ -9,6 +9,7 @@ Follow these steps in order to set up and test the Spotify integration.
 - [ ] Access to webserver (172.16.232.6) via SSH
 - [ ] Access to all three MatrixPortal M4 displays (WC, Bathroom, Eva) via USB-C
 - [ ] Spotify account with active music playback capability
+- [ ] Production stack from [Webserver setup](webserver_setup.md): **Gunicorn** on **5000**, **Nginx** on **52341** (or you understand your own reverse-proxy ports)
 
 ## Step 1: Configure Spotify Developer App
 
@@ -72,7 +73,7 @@ SPOTIFY_REDIRECT_URI = "http://172.16.232.6:52341/spotify/callback"
 - [ ] Check that `VALID_PRESETS` includes "music"
 - [ ] Verify file was updated from repository
 
-### 2.4 Restart Flask Service
+### 2.4 Restart Flask service (Gunicorn on port 5000)
 
 ```bash
 # Restart the Flask service to load new code and dependencies
@@ -85,6 +86,15 @@ sudo systemctl status sigfox-bridge
 - [ ] Service restarted successfully
 - [ ] Service is running (status shows "active")
 - [ ] No errors in service logs
+
+**Sanity check (on the webserver):** Gunicorn must listen on **5000** so Nginx can proxy. From the VM:
+
+```bash
+sudo ss -tlnp | grep 5000
+curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5000/spotify/auth
+```
+
+Expect **302** (redirect to Spotify) if Spotify credentials load, or **503** if disabled — not connection refused. If **52341** returns **502** but **5000** works, fix `sigfox-bridge`, not Nginx.
 
 ### 2.5 Authenticate with Spotify
 
@@ -105,7 +115,7 @@ This will:
 - [ ] OAuth flow completed
 - [ ] Redirected back to callback successfully
 - [ ] Authentication message displayed
-- [ ] `.spotify_cache` file created on webserver
+- [ ] `.spotify_cache` file created on webserver (same directory as systemd **`WorkingDirectory`**, e.g. `~/sigfox_mqtt_bridge`)
 
 ## Step 3: Update Display Firmware
 
@@ -244,6 +254,7 @@ curl "http://172.16.232.6:52341/spotify/wc"
 - Check redirect URI matches exactly in Spotify dashboard and credentials file
 - Verify Client ID and Client Secret are correct
 - Check webserver logs: `sudo journalctl -u sigfox-bridge -f`
+- **502 Bad Gateway** on `:52341`: Nginx is up but **Gunicorn** is not answering on **5000** — see [Webserver troubleshooting](webserver_setup.md#troubleshooting). Test `curl http://127.0.0.1:5000/spotify/auth` on the VM.
 
 ### If Display Doesn't Show Music Preset
 - Verify `code.py` was updated on the display

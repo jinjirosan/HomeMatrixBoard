@@ -12,7 +12,7 @@ These guides describe how to run the **Spotify MQTT bridge** (`spotify/bridge.py
 
 ## Prerequisites (all environments)
 
-- A **Spotify Developer** app (Client ID / Secret) and OAuth completed so `.spotify_cache` exists (see [Spotify integration](../spotify_integration.md) — use `/spotify/auth` on your Flask host, or the same cache path on the machine that runs the bridge).
+- A **Spotify Developer** app (Client ID / Secret) and OAuth completed so `.spotify_cache` exists (see [Spotify integration](../spotify_integration.md) — open **`/spotify/auth`** using the **public** URL, e.g. `http://172.16.232.6:52341/spotify/auth` when Nginx listens on 52341; or reuse the same cache path on the machine that runs the bridge).
 - `spotify_credentials.py` in the **HomeMatrixBoard repo root** (copy from `spotify_credentials.py.template`).
 - Network path from each machine to your **MQTT broker** (port `1883` unless you change it).
 

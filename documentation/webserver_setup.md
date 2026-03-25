@@ -180,7 +180,18 @@ server {
 }
 ```
 
-**Note:** The port 52341 is used for production. If you prefer port 80, change `listen 52341;` to `listen 80;` and update all URLs accordingly.
+**Production ports (important):**
+
+| Port | Process | Role |
+|------|---------|------|
+| **52341** | Nginx | Public HTTP: all external URLs (`/sigfox`, `/spotify/...`) hit this port. |
+| **5000** | Gunicorn (`app:app`) | Internal Flask app; Nginx `proxy_pass` targets `127.0.0.1:5000`. |
+
+- **Spotify OAuth:** Register redirect URI and set `SPOTIFY_REDIRECT_URI` to the **browser-visible** URL (e.g. `http://172.16.232.6:52341/spotify/callback`), not `...:5000/...`.
+- **Token file:** `.spotify_cache` is written under the systemd **`WorkingDirectory`** after a successful `/spotify/callback`. The [Spotify MQTT bridge](spotify_mqtt_bridge/README.md) on the same host should run from that directory (or set `SPOTIFY_CACHE_PATH`) so it shares the same cache.
+- **Conflict:** Do not bind another process (including `python app.py` if it uses port **52341**) on the same host where Nginx already listens on **52341**. The repository’s `app.py` uses port 52341 only for **standalone** dev without Nginx; production uses Gunicorn on **5000** only.
+
+**Note:** If you prefer port 80 instead of 52341, change `listen 52341;` to `listen 80;` and update all public URLs and the Spotify redirect URI accordingly.
 
 ### 6. Enable and Start Services
 ```bash
@@ -225,19 +236,26 @@ curl -X POST -H "Content-Type: application/json" \
 For more detailed API documentation and examples, see [Webhook Integration Guide](webhook_integration.md).
 
 ## Troubleshooting
-1. Check service status:
+
+1. **502 Bad Gateway** from Nginx (e.g. `curl http://127.0.0.1:52341/spotify/auth` returns 502):
+   - Nginx is running, but nothing healthy is answering **`proxy_pass`** (default `http://127.0.0.1:5000`).
+   - Check Gunicorn: `sudo systemctl status sigfox-bridge` and `sudo ss -tlnp | grep 5000`.
+   - Test the app **directly**: `curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5000/spotify/auth` — expect **302** when Spotify is configured (or **503** if credentials missing), not connection refused.
+   - If `ss` shows **nginx** on **52341** but nothing on **5000**, start or fix `sigfox-bridge` (see service `ExecStart` bind port vs `proxy_pass`).
+
+2. Check service status:
    ```bash
    sudo systemctl status sigfox-bridge
    sudo journalctl -u sigfox-bridge
    ```
 
-2. Check Nginx logs:
+3. Check Nginx logs:
    ```bash
    sudo tail -f /var/log/nginx/access.log
    sudo tail -f /var/log/nginx/error.log
    ```
 
-3. Test MQTT connection:
+4. Test MQTT connection:
    ```bash
    # Install mosquitto clients for testing
    sudo apt install -y mosquitto-clients
@@ -248,7 +266,7 @@ For more detailed API documentation and examples, see [Webhook Integration Guide
    ```
    For MQTT broker configuration details, see [MQTT Broker Setup](mqtt_broker_setup.md).
 
-4. After making changes to app.py:
+5. After making changes to app.py:
    ```bash
    sudo systemctl restart sigfox-bridge
    ```

@@ -38,8 +38,8 @@ curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
 ## System Components
 
 1. **Webserver (172.16.232.6)**
-   - Flask application handling webhooks
-   - Optional Spotify integration
+   - Flask application handling webhooks (Gunicorn on **5000** internally)
+   - Optional Spotify integration (public URLs use Nginx on **52341**)
    - Nginx reverse proxy
 
 2. **MQTT Broker (172.16.234.55)**

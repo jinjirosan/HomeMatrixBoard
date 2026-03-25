@@ -5,6 +5,11 @@ All notable changes to the HomeMatrixBoard project will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Documentation: clarified production ports (**Nginx 52341** → **Gunicorn 5000**), Spotify OAuth redirect URI vs internal port, **502** troubleshooting, and `.spotify_cache` / bridge alignment (`webserver_setup.md`, `spotify_integration.md`, `SPOTIFY_SETUP_CHECKLIST.md`, `webhook_integration.md`, `spotify_mqtt_bridge/README.md`, `architecture.md`, `spotify_credentials.py.template`).
+
 ## [1.1.0] - 2024-01-18
 
 ### Added

@@ -18,12 +18,24 @@ Spotify Web API → Flask Webhook → MQTT Broker → MatrixPortal Displays
 3. **MQTT Broker**: Existing infrastructure for message routing
 4. **MatrixPortal Displays**: Existing display hardware (WC, Bathroom, Eva)
 
+### Production web stack (Nginx + Gunicorn)
+
+On the standard deployment ([Webserver setup](webserver_setup.md)):
+
+- **Nginx** listens on **52341** (public). Browsers and `curl` to `http://172.16.232.6:52341/...` hit Nginx first.
+- **Gunicorn** runs Flask on **127.0.0.1:5000**. Nginx forwards requests with `proxy_pass http://127.0.0.1:5000`.
+- **Redirect URI** in the Spotify Developer Dashboard and **`SPOTIFY_REDIRECT_URI`** must use the **public** URL (e.g. `http://172.16.232.6:52341/spotify/callback`), not port **5000**.
+- After OAuth, **`.spotify_cache`** is created in the process working directory — for systemd, that is **`WorkingDirectory`** (e.g. `/home/rayf/sigfox_mqtt_bridge`). Run the [Spotify MQTT bridge](spotify_mqtt_bridge/README.md) from the same directory or set **`SPOTIFY_CACHE_PATH`** so the bridge reuses tokens.
+- If you see **502 Bad Gateway** on `:52341`, the backend on **5000** is usually down or misconfigured; see [Webserver troubleshooting](webserver_setup.md#troubleshooting).
+
+The repository `app.py` uses `app.run(..., port=52341)` only for **local development without Nginx**. On the production VM, use **`sigfox-bridge`** (Gunicorn on **5000**), not a second server bound to **52341** alongside Nginx.
+
 ## Prerequisites
 
 ### 1. Spotify Developer Account
 - Register at [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 - Create a new app to get Client ID and Client Secret
-- **Set redirect URI**: `http://172.16.232.6:52341/spotify/callback` (or your server URL)
+- **Set redirect URI**: `http://172.16.232.6:52341/spotify/callback` (or your server URL — the port and path the **browser** uses after Nginx)
   - This must match exactly in both Spotify dashboard and `spotify_credentials.py`
 
 ### 2. Required Permissions

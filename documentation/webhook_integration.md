@@ -3,7 +3,7 @@
 This guide provides the API reference for the webhook endpoints used to control the HomeMatrixBoard displays.
 
 ## Base URL
-- **Production**: `http://172.16.232.6:52341`
+- **Production**: `http://172.16.232.6:52341` (Nginx; forwards to Gunicorn/Flask on **127.0.0.1:5000** — see [Webserver setup](webserver_setup.md))
 - **Endpoint**: `/sigfox`
 
 ## Endpoint
