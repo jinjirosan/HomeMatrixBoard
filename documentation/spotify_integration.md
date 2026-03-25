@@ -3,6 +3,8 @@
 ## Overview
 This document outlines the implementation of Spotify integration to display currently playing tracks on the HomeMatrixBoard LED matrix displays. The integration allows real-time display of artist and song information from Spotify across any or all configured displays.
 
+For **MQTT topics** (`home/spotify/#`), the **Spotify MQTT bridge**, and install steps for **Mac Mini**, **Raspberry Pi**, and **Mosquitto ACLs**, see the dedicated guides under [Spotify MQTT bridge](spotify_mqtt_bridge/README.md).
+
 ## Architecture
 
 ### System Flow

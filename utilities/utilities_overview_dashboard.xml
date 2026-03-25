@@ -233,7 +233,7 @@
     1=1, "unknown"
   )
 | join type=left sourcetype 
-    [search index=utilities sourcetype IN (kamstrup:*, elster:*, emonpi:*) earliest=-1h latest=now
+    [search index=utilities sourcetype IN (kamstrup:*, elster:*, emonpi:*) earliest=-7d latest=now
     | stats 
         count as message_count,
         latest(_time) as last_seen,
@@ -255,12 +255,14 @@
     1=1, "Poor"
   )
 | eval message_count=coalesce(message_count, 0)
-| eval last_seen_friendly=if(isnull(last_seen), "Never", strftime(last_seen, "%H:%M:%S"))
+| eval last_seen_friendly=if(isnull(last_seen), "Offline > 7 days", strftime(last_seen, "%Y-%m-%d %H:%M:%S"))
 | eval signal_dbm=if(isnull(signal_dbm), "N/A", tostring(signal_dbm))
+| eval signal_quality=if(match(status, "OFFLINE|NO DATA"), "N/A", signal_quality)
+| eval signal_dbm=if(match(status, "OFFLINE|NO DATA"), "N/A", signal_dbm)
 | eval firmware=coalesce(firmware, "N/A")
 | rename utilities as utility
 | table utility, status, message_count, last_seen_friendly, signal_dbm, signal_quality, firmware</query>
-          <earliest>-1h</earliest>
+          <earliest>-7d</earliest>
           <latest>now</latest>
           <refresh>$refresh_token$</refresh>
           <refreshType>delay</refreshType>
@@ -269,10 +271,10 @@
         <option name="drilldown">none</option>
         <option name="refresh.display">progressbar</option>
         <format type="color" field="status">
-          <colorPalette type="map">{"🟢 ONLINE": #65A637, "🟡 DELAYED": #F7BC38, "🔴 OFFLINE": #D93F3C}</colorPalette>
+          <colorPalette type="map">{"🟢 ONLINE": #65A637, "🟡 DELAYED": #F7BC38, "🔴 OFFLINE": #D93F3C, "🔴 NO DATA": #D93F3C}</colorPalette>
         </format>
         <format type="color" field="signal_quality">
-          <colorPalette type="map">{"Excellent": #65A637, "Good": #6DB7C6, "Fair": #F7BC38, "Poor": #D93F3C}</colorPalette>
+          <colorPalette type="map">{"N/A": #999999, "Excellent": #65A637, "Good": #6DB7C6, "Fair": #F7BC38, "Poor": #D93F3C}</colorPalette>
         </format>
       </table>
     </panel>

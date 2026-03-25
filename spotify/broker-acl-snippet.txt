@@ -1,0 +1,19 @@
+# Mosquitto: extend passwd + acl for Spotify MQTT topics
+#
+# Option A — reuse your existing webhook MQTT user (simplest):
+#   user sigfoxwebhookhost
+#   topic write home/displays/#
+#   topic write home/spotify/#
+#
+# Option B — dedicated users:
+#   sudo mosquitto_passwd /etc/mosquitto/passwd spotify_bridge
+#   sudo mosquitto_passwd /etc/mosquitto/passwd spotify_viewer
+#
+# In acl file:
+#   user spotify_bridge
+#   topic write home/spotify/#
+#
+#   user spotify_viewer
+#   topic read home/spotify/#
+#
+# Then: sudo systemctl restart mosquitto

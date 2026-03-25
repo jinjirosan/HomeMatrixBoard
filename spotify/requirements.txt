@@ -1,0 +1,4 @@
+# Spotify MQTT bridge + lyrics viewer (install from repo root: pip install -r spotify/requirements.txt)
+paho-mqtt>=1.6.0
+requests>=2.28.0
+spotipy>=2.23.0

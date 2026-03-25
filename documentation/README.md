@@ -24,6 +24,7 @@ curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
 - **[Webserver Setup](webserver_setup.md)** - How to set up the Flask webhook server
 - **[Spotify Integration](spotify_integration.md)** - Optional Spotify integration setup
 - **[Spotify Setup Checklist](SPOTIFY_SETUP_CHECKLIST.md)** - Step-by-step Spotify setup checklist
+- **[Spotify MQTT bridge](spotify_mqtt_bridge/README.md)** - MQTT topics, Mac Mini, and Raspberry Pi install guides for the lyrics viewer and bridge
 
 ### User Guides
 - **[Display Operation](display_operation.md)** - How to use the displays, message formats, and testing
