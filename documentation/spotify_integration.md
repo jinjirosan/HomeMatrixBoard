@@ -26,6 +26,7 @@ On the standard deployment ([Webserver setup](webserver_setup.md)):
 - **Gunicorn** runs Flask on **127.0.0.1:5000**. Nginx forwards with **`proxy_pass http://127.0.0.1:5000`** (use **IPv4**, not `localhost`, to avoid `[::1]` upstream failures — see [Webserver troubleshooting](webserver_setup.md#troubleshooting)).
 - **Spotify requires HTTPS** for redirect URIs that are not loopback: plain **`http://172.16.x.x/...`** is rejected with **redirect_uri: Insecure**. Register **`https://.../spotify/callback`** in the Spotify Dashboard and set **`SPOTIFY_REDIRECT_URI`** to the **same** string (scheme, host, port, path). Do not use port **5000** in the redirect URI.
 - **TLS certificates:** If the URL uses the **numeric IP**, the server certificate must include an **IP address** SAN (`IP:172.16.232.6`), not `DNS:172.16.232.6`, or clients fail name verification. See [Webserver setup — TLS](webserver_setup.md#5-nginx-configuration-https-on-52341--production).
+- **Private / internal CA:** If Nginx uses a cert signed by your own CA, **`curl`** must use **`--cacert /path/to/ca.pem`** (or the CA must be installed in the system trust store). **Browsers** must also trust that CA to open **`https://.../spotify/...`** without certificate errors. See [Webhook integration — TLS](webhook_integration.md) and [Webserver setup](webserver_setup.md).
 - After OAuth, **`.spotify_cache`** is created in the process working directory — for systemd, that is **`WorkingDirectory`** (e.g. `/home/rayf/sigfox_mqtt_bridge`). Run the [Spotify MQTT bridge](spotify_mqtt_bridge/README.md) from the same directory or set **`SPOTIFY_CACHE_PATH`** so the bridge reuses tokens.
 - If you see **502 Bad Gateway** on `:52341`, the backend on **5000** is usually down, **`proxy_pass`** is wrong, or Nginx needs a **reload**; see [Webserver troubleshooting](webserver_setup.md#troubleshooting).
 
@@ -254,10 +255,30 @@ sudo systemctl restart sigfox-bridge
 
 ## Usage Examples
 
+Use **`https://`** with your real host (here **`172.16.232.6:52341`**). With a **private CA**, add **`curl --cacert /path/to/ca.pem`** to every `curl` example below (or install the CA system-wide). Browsers must trust the same CA.
+
+### Browser (single display)
+
+You can **open the URL in a browser** the same way as `curl`: it issues a **GET** and the page shows **JSON** in the body. Example for WC while Spotify is playing:
+
+```
+https://172.16.232.6:52341/spotify/wc
+```
+
+Example response body (Unicode characters may appear as `\uXXXX` escapes in the raw page):
+
+```json
+{"status": "success", "track": {"artist": "Jelly Roll", "song": "I\u2019m Good - From The Movie \u201cGOAT\u201d", "album": "I\u2019m Good (From The Movie \u201cGOAT\u201d)"}}
+```
+
 ### 1. Initial Authentication
+
+**Browser (recommended):** Open **`https://172.16.232.6:52341/spotify/auth`** and complete Spotify login.
+
+**curl:**
 ```bash
-# Start OAuth flow (redirects to Spotify login)
-curl "https://172.16.232.6:52341/spotify/auth"
+# Redirects to Spotify login. Add --cacert if using a private CA.
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/auth"
 
 # After authentication, callback completes automatically
 # Token is cached in .spotify_cache file
@@ -265,22 +286,22 @@ curl "https://172.16.232.6:52341/spotify/auth"
 
 ### 2. Display Current Track on Specific Display
 ```bash
-# Display on WC
-curl "https://172.16.232.6:52341/spotify/wc"
+# Display on WC (add --cacert /path/to/ca.pem when needed)
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/wc"
 
-# Display on Bathroom
-curl "https://172.16.232.6:52341/spotify/bathroom"
-
-# Display on Eva
-curl "https://172.16.232.6:52341/spotify/eva"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/bathroom"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/eva"
 ```
 
 ### 3. Display on All Displays
 ```bash
-curl "https://172.16.232.6:52341/spotify/all"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/all"
 ```
 
-**Response Format:**
+**Response format — one display** (`/spotify/wc`, `/spotify/bathroom`, `/spotify/eva`): JSON with **`status`** and **`track`** (`artist`, `song`, `album`), as in the browser example above.
+
+**Response format — all displays** (`/spotify/all`): same **`track`**, plus a **`displays`** object with per-target results:
+
 ```json
 {
     "status": "success",

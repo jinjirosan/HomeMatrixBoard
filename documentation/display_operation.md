@@ -102,6 +102,13 @@ The system uses MatrixPortal M4 LED matrix displays to show countdown timers and
 - Usage: `{"mode": "preset", "preset_id": "music", "artist": "Artist Name", "song": "Song Name"}`
 - Error State: Shows "NO TRACK DATA" if artist/song not provided
 
+### Spotify via Flask (browser or curl)
+
+If [Spotify integration](spotify_integration.md) is enabled on the webserver, you can push **now playing** to a board with a **GET** to **`https://<server>:52341/spotify/<target>`** (e.g. **`/spotify/wc`**). Details: [Spotify integration — usage](spotify_integration.md#usage-examples).
+
+- **Browser:** Open the URL in the address bar; the page shows **JSON** (`status`, `track` with `artist`, `song`, `album`). Same response `curl` would print.
+- **Private CA:** Use **`curl --cacert /path/to/ca.pem`** unless the CA is in the system trust store; browsers must trust that CA for **`https://`**. See [Webhook integration](webhook_integration.md).
+
 ### 5. Reset Preset
 - Background: Black
 - Text: None

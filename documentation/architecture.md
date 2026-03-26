@@ -161,7 +161,7 @@ Each display subscribes to its own topic and publishes status/health information
 4. Display receives and shows "On Air" preset
 
 ### Spotify Integration
-1. Webhook: `GET /spotify/wc`
+1. Client: **`GET /spotify/wc`** (same URL in a **browser** shows JSON for the current track; use **`curl --cacert`** with a private CA — see [Spotify integration](spotify_integration.md))
 2. Webserver fetches current track from Spotify API
 3. Webserver formats: `{"mode": "preset", "preset_id": "music", "artist": "...", "song": "..."}`
 4. MQTT publish: `home/displays/wc` with message

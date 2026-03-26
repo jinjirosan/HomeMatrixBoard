@@ -15,6 +15,15 @@ curl --cacert /path/to/ca.cert.pem 'https://172.16.232.6:52341/sigfox?target=wc&
 curl --cacert /path/to/ca.cert.pem 'https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air'
 ```
 
+Omit **`--cacert`** if your system already trusts the HTTPS certificate.
+
+### Spotify (now playing on a display)
+
+- **Browser:** `https://172.16.232.6:52341/spotify/wc` — shows JSON for the current track and triggers the WC matrix (when Spotify is playing and integration is configured).
+- **curl:** `curl --cacert /path/to/ca.cert.pem "https://172.16.232.6:52341/spotify/wc"` (same CA note as above).
+
+See [Spotify integration](spotify_integration.md) for **`/spotify/auth`**, **`/spotify/all`**, and response shapes.
+
 ## Documentation Structure
 
 ### Setup Guides

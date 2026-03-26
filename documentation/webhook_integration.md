@@ -151,14 +151,22 @@ curl "https://172.16.232.6:52341/spotify/auth"
 ```
 
 ### Display Current Track
-```bash
-# Display current track on specific display (add --cacert when needed)
-curl "https://172.16.232.6:52341/spotify/wc"
-curl "https://172.16.232.6:52341/spotify/bathroom"
-curl "https://172.16.232.6:52341/spotify/eva"
 
-# Display current track on all displays
-curl "https://172.16.232.6:52341/spotify/all"
+**Browser:** These are plain **GET** requests. You can open e.g. **`https://172.16.232.6:52341/spotify/wc`** in the address bar while music is playing; the page body is **JSON** with `status` and `track` (`artist`, `song`, `album`). Apostrophes and smart quotes in titles may appear as Unicode escapes (e.g. `\u2019`) in the raw response. **`/spotify/all`** adds a `displays` map with per-board results.
+
+**curl** (add **`--cacert /path/to/ca.pem`** when using a private CA):
+
+```bash
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/wc"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/bathroom"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/eva"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/all"
+```
+
+Example response for a single display:
+
+```json
+{"status": "success", "track": {"artist": "Jelly Roll", "song": "I\u2019m Good - From The Movie \u201cGOAT\u201d", "album": "I\u2019m Good (From The Movie \u201cGOAT\u201d)"}}
 ```
 
 **Note**: Spotify integration requires:

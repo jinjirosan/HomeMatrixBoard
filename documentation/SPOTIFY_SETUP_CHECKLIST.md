@@ -10,6 +10,7 @@ Follow these steps in order to set up and test the Spotify integration.
 - [ ] Access to all three MatrixPortal M4 displays (WC, Bathroom, Eva) via USB-C
 - [ ] Spotify account with active music playback capability
 - [ ] Production stack from [Webserver setup](webserver_setup.md): **Gunicorn** on **5000**, **Nginx** with **TLS** on **52341** (or you understand your own reverse-proxy ports)
+- [ ] If TLS uses a **private CA**: CA certificate available for **`curl --cacert`**, and the CA **trusted in the browser** on machines that open `https://172.16.232.6:52341/...` (see [Webhook integration](webhook_integration.md))
 
 ## Step 1: Configure Spotify Developer App
 
@@ -98,12 +99,11 @@ Expect **302** (redirect to Spotify) if Spotify credentials load, or **503** if 
 
 ### 2.5 Authenticate with Spotify
 
-```bash
-# From your local machine or browser, visit:
-# https://172.16.232.6:52341/spotify/auth
+From your machine, open in a **browser**: **`https://172.16.232.6:52341/spotify/auth`** (or use `curl` below). With a **private CA**, the browser must trust that CA; for `curl`, add **`--cacert /path/to/ca.pem`**.
 
-# Or use curl:
-curl "https://172.16.232.6:52341/spotify/auth"
+```bash
+# Or use curl (add --cacert /path/to/ca.pem if verification fails):
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/auth"
 ```
 
 This will:
@@ -190,18 +190,18 @@ mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
 - [ ] Spotify is playing music on your account
 - [ ] You've completed OAuth authentication (Step 2.5)
 
+**Browser:** Open **`https://172.16.232.6:52341/spotify/wc`** (or `/spotify/bathroom`, `/spotify/eva`). The page shows **JSON** with `status` and `track` (`artist`, `song`, `album`) — same payload the API returns to `curl`. Unicode in titles may show as `\u2019`-style escapes in the raw page.
+
+**curl** (use your real CA path when not using the system trust store):
+
 ```bash
 # Test on WC display
-curl "https://172.16.232.6:52341/spotify/wc"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/wc"
 
-# Test on Bathroom display
-curl "https://172.16.232.6:52341/spotify/bathroom"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/bathroom"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/eva"
 
-# Test on Eva display
-curl "https://172.16.232.6:52341/spotify/eva"
-
-# Test on all displays at once
-curl "https://172.16.232.6:52341/spotify/all"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/all"
 ```
 
 **Expected Result:**
@@ -215,7 +215,7 @@ curl "https://172.16.232.6:52341/spotify/all"
 
 ```bash
 # Test when no track is playing (stop Spotify)
-curl "https://172.16.232.6:52341/spotify/wc"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/wc"
 # Should return: "No track currently playing" (404)
 
 # Test with missing credentials (temporarily rename spotify_credentials.py)
@@ -244,8 +244,8 @@ curl "https://172.16.232.6:52341/spotify/wc"
 
 ### 5.3 Verify Existing Functionality Still Works
 
-- [ ] Timer mode still works: `curl "https://172.16.232.6:52341/sigfox?target=wc&text=Test&duration=10"`
-- [ ] Other presets still work: `curl "https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"`
+- [ ] Timer mode still works: `curl --cacert /path/to/ca.pem 'https://172.16.232.6:52341/sigfox?target=wc&text=Test&duration=10'` (omit `--cacert` if the CA is system-trusted)
+- [ ] Other presets still work: `curl --cacert /path/to/ca.pem 'https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air'`
 - [ ] No regressions in existing features
 
 ## Troubleshooting
@@ -295,15 +295,13 @@ sudo journalctl -u sigfox-bridge -f
 3. Verify `scrolling_label.mpy` in `lib/` folder
 4. Eject and power cycle
 
-**Test Commands:**
+**Test commands** (add **`--cacert /path/to/ca.pem`** when your HTTPS cert chains to a private CA):
+
 ```bash
-# Authenticate
-curl "https://172.16.232.6:52341/spotify/auth"
-
-# Display on WC
-curl "https://172.16.232.6:52341/spotify/wc"
-
-# Display on all
-curl "https://172.16.232.6:52341/spotify/all"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/auth"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/wc"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/all"
 ```
+
+**Browser:** Same URLs work in the address bar; **`/spotify/wc`** shows JSON for the current track. See [Spotify integration — usage](spotify_integration.md#usage-examples).
 

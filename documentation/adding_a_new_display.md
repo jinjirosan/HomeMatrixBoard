@@ -292,10 +292,13 @@ mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
 
 ### 5.4 Test Spotify Integration (If Enabled)
 
+Open **`https://172.16.232.6:52341/spotify/kitchen`** in a browser to see JSON for the current track, or:
+
 ```bash
-# Test Spotify integration
-curl "https://172.16.232.6:52341/spotify/kitchen"
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/kitchen"
 ```
+
+(Omit **`--cacert`** if the HTTPS CA is already trusted. See [Spotify integration](spotify_integration.md).)
 
 ## Step 6: Verify All Systems
 
@@ -431,14 +434,13 @@ secrets = {
 
 ### Test Commands
 ```bash
-# Timer mode
-curl "https://172.16.232.6:52341/sigfox?target=kitchen&text=Cooking&duration=30"
+# Timer mode (add --cacert /path/to/ca.pem if using a private CA)
+curl --cacert /path/to/ca.pem 'https://172.16.232.6:52341/sigfox?target=kitchen&text=Cooking&duration=30'
 
-# Preset mode
-curl "https://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=on_air"
+curl --cacert /path/to/ca.pem 'https://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=on_air'
 
-# Spotify (if enabled)
-curl "https://172.16.232.6:52341/spotify/kitchen"
+# Spotify (if enabled) — or open the URL in a browser
+curl --cacert /path/to/ca.pem "https://172.16.232.6:52341/spotify/kitchen"
 ```
 
 ## Related Documentation
