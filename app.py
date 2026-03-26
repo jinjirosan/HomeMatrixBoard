@@ -164,14 +164,14 @@ def spotify_current_track(target):
         song = item.get('name', 'Unknown Song')
         album = item.get('album', {}).get('name', 'Unknown Album')
         
-        # Create message for preset mode with artist and song separately
-        # Display will handle scrolling for long text
+        # Music preset: omit duration so the board keeps showing until the next
+        # MQTT message (timer, another preset, reset). Hardcoded 30s felt like
+        # the display "turning off" mid-track.
         message_data = {
             "mode": "preset",
             "preset_id": "music",
             "artist": artist,
             "song": song,
-            "duration": 30  # Display for 30 seconds
         }
         
         # Map display targets to MQTT topics
@@ -250,14 +250,11 @@ def spotify_all_displays():
         artist = item.get('artists', [{}])[0].get('name', 'Unknown Artist')
         song = item.get('name', 'Unknown Song')
         
-        # Create message for preset mode with artist and song separately
-        # Display will handle scrolling for long text
         message_data = {
             "mode": "preset",
             "preset_id": "music",
             "artist": artist,
             "song": song,
-            "duration": 30
         }
         
         # Map display targets to MQTT topics
