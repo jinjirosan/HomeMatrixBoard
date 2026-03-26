@@ -159,39 +159,63 @@ ExecStart=/home/rayf/sigfox_mqtt_bridge/venv/bin/gunicorn --workers 3 --bind 0.0
 WantedBy=multi-user.target
 ```
 
-### 5. Nginx Configuration
+### 5. Nginx Configuration (HTTPS on 52341 — production)
+
+Spotify’s authorization server **rejects non-loopback `http://` redirect URIs** as insecure. For `/spotify/auth` and `/spotify/callback` you need **HTTPS** on the port the browser uses (here **52341**), with a certificate trusted by clients (or your internal CA installed on admin machines).
+
 Create and edit the Nginx site configuration:
 ```bash
-# Create and edit the configuration file
 sudo vim /etc/nginx/sites-available/sigfox-bridge
 ```
 
-Add the following configuration:
+Example **TLS** configuration (adjust paths to your certificate files):
+
 ```nginx
 server {
-    listen 52341;
+    listen 52341 ssl;
     server_name 172.16.232.6;
+
+    ssl_certificate     /etc/nginx/ssl/172.16.232.6-cert-chain.pem;   # full chain (leaf + intermediates)
+    ssl_certificate_key /etc/nginx/ssl/172.16.232.6.key.pem;
 
     location / {
         proxy_pass http://127.0.0.1:5000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }
 ```
+
+**TLS certificate tips (avoid common verify failures):**
+
+- If users open **`https://172.16.232.6:52341/...`**, the server certificate must include the IP in **Subject Alternative Name** as an **IP address** (`IP:172.16.232.6` in OpenSSL config), **not** as `DNS:172.16.232.6`. The latter makes browsers/`curl` fail with *no alternative certificate subject name matches target ipv4 address*.
+- You may add a **DNS** SAN as well (e.g. `sigfoxwebhookhost.flinkerbusch.intranet`) if you use that hostname in URLs; the redirect URI in Spotify and `SPOTIFY_REDIRECT_URI` must match **exactly** (scheme, host, port, path).
+- Use **`ssl_certificate`** = **full chain** file (server cert + intermediate CAs) so clients can build a path to your root/enterprise CA.
+
+**HTTP-only (no Spotify OAuth on this URL):** For a purely internal lab you can use `listen 52341;` without `ssl` for `/sigfox` only. Spotify will still require **`https://`** for redirect URIs that are not `http://localhost` / `http://127.0.0.1`.
 
 **Production ports (important):**
 
 | Port | Process | Role |
 |------|---------|------|
-| **52341** | Nginx | Public HTTP: all external URLs (`/sigfox`, `/spotify/...`) hit this port. |
-| **5000** | Gunicorn (`app:app`) | Internal Flask app; Nginx `proxy_pass` targets `127.0.0.1:5000`. |
+| **52341** | Nginx | Public **HTTPS** (TLS): `/sigfox`, `/spotify/...` (after TLS termination). |
+| **5000** | Gunicorn (`app:app`) | Internal Flask app; Nginx **`proxy_pass http://127.0.0.1:5000`** (IPv4; avoid `localhost` here — see troubleshooting). |
 
-- **Spotify OAuth:** Register redirect URI and set `SPOTIFY_REDIRECT_URI` to the **browser-visible** URL (e.g. `http://172.16.232.6:52341/spotify/callback`), not `...:5000/...`.
+- **Spotify OAuth:** Register redirect URI and set **`SPOTIFY_REDIRECT_URI`** to the **browser-visible HTTPS** URL, e.g. `https://172.16.232.6:52341/spotify/callback`, not port **5000** and not plain `http://` for this host.
 - **Token file:** `.spotify_cache` is written under the systemd **`WorkingDirectory`** after a successful `/spotify/callback`. The [Spotify MQTT bridge](spotify_mqtt_bridge/README.md) on the same host should run from that directory (or set `SPOTIFY_CACHE_PATH`) so it shares the same cache.
 - **Conflict:** Do not bind another process (including `python app.py` if it uses port **52341**) on the same host where Nginx already listens on **52341**. The repository’s `app.py` uses port 52341 only for **standalone** dev without Nginx; production uses Gunicorn on **5000** only.
 
-**Note:** If you prefer port 80 instead of 52341, change `listen 52341;` to `listen 80;` and update all public URLs and the Spotify redirect URI accordingly.
+**Note:** If you prefer port **443** (or **80** for HTTP-only), change `listen` and update all public URLs and the Spotify redirect URI accordingly.
+
+**Testing with `curl` and an internal CA:**
+
+```bash
+curl --cacert /path/to/ca.cert.pem 'https://172.16.232.6:52341/sigfox?target=wc&text=Shower&duration=60'
+```
+
+Without `--cacert`, `curl` may fail verification unless the CA is in the system trust store.
 
 ### 6. Enable and Start Services
 ```bash
@@ -206,38 +230,39 @@ sudo systemctl restart nginx
 ```
 
 ## Testing
-Test the webhook endpoint:
+Test the webhook endpoint (use **`https://`** when Nginx serves TLS; add **`--cacert`** if you use a private CA):
+
 ```bash
 # Test timer mode (GET)
-curl "http://172.16.232.6:52341/sigfox?target=wc&text=Shower&duration=60"
+curl --cacert /path/to/ca.cert.pem 'https://172.16.232.6:52341/sigfox?target=wc&text=Shower&duration=60'
 
 # Test preset mode (GET)
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
+curl --cacert /path/to/ca.cert.pem 'https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air'
 
 # Test preset with custom name and duration (GET)
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air&name=Studio%201&duration=3600"
+curl --cacert /path/to/ca.cert.pem 'https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air&name=Studio%201&duration=3600'
 
 # Test timer mode (POST)
-curl -X POST -H "Content-Type: application/json" \
+curl --cacert /path/to/ca.cert.pem -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","text":"Shower","duration":60}' \
-     http://172.16.232.6:52341/sigfox
+     https://172.16.232.6:52341/sigfox
 
 # Test preset mode (POST)
-curl -X POST -H "Content-Type: application/json" \
+curl --cacert /path/to/ca.cert.pem -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","mode":"preset","preset_id":"on_air"}' \
-     http://172.16.232.6:52341/sigfox
+     https://172.16.232.6:52341/sigfox
 
 # Test preset with custom name and duration (POST)
-curl -X POST -H "Content-Type: application/json" \
+curl --cacert /path/to/ca.cert.pem -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","mode":"preset","preset_id":"on_air","name":"Studio 1","duration":3600}' \
-     http://172.16.232.6:52341/sigfox
+     https://172.16.232.6:52341/sigfox
 ```
 
 For more detailed API documentation and examples, see [Webhook Integration Guide](webhook_integration.md).
 
 ## Troubleshooting
 
-1. **502 Bad Gateway** from Nginx (e.g. `curl` to `http://172.16.232.6:52341/sigfox?...` returns 502):
+1. **502 Bad Gateway** from Nginx (e.g. `curl` to `https://172.16.232.6:52341/sigfox?...` returns 502):
 
    **Isolate Flask vs Nginx first** (502 is usually **not** caused by `app.py` if Gunicorn is healthy):
 
@@ -260,19 +285,24 @@ For more detailed API documentation and examples, see [Webhook Integration Guide
 
    **Spotify redirect check (optional):** `curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5000/spotify/auth` — expect **302** when Spotify is configured (or **503** if disabled), not connection refused.
 
-2. Check service status:
+2. **TLS / certificate errors** (`curl: SSL certificate problem`, *no alternative certificate subject name matches target ipv4 address*):
+   - Ensure the cert presented on **52341** has a **SAN** that matches how you connect: **IP** SAN for `https://172.16.232.6/...`, or **DNS** SAN for `https://your.hostname/...` — do not put the IP only under `DNS:`.
+   - Install your **CA** in the trust store on clients, or use `curl --cacert /path/to/ca.pem`.
+   - After replacing certs, `sudo nginx -t && sudo systemctl reload nginx`.
+
+3. Check service status:
    ```bash
    sudo systemctl status sigfox-bridge
    sudo journalctl -u sigfox-bridge
    ```
 
-3. Check Nginx logs:
+4. Check Nginx logs:
    ```bash
    sudo tail -f /var/log/nginx/access.log
    sudo tail -f /var/log/nginx/error.log
    ```
 
-4. Test MQTT connection:
+5. Test MQTT connection:
    ```bash
    # Install mosquitto clients for testing
    sudo apt install -y mosquitto-clients
@@ -283,7 +313,7 @@ For more detailed API documentation and examples, see [Webhook Integration Guide
    ```
    For MQTT broker configuration details, see [MQTT Broker Setup](mqtt_broker_setup.md).
 
-5. After making changes to app.py:
+6. After making changes to app.py:
    ```bash
    sudo systemctl restart sigfox-bridge
    ```

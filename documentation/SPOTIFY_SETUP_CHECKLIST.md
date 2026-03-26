@@ -9,14 +9,14 @@ Follow these steps in order to set up and test the Spotify integration.
 - [ ] Access to webserver (172.16.232.6) via SSH
 - [ ] Access to all three MatrixPortal M4 displays (WC, Bathroom, Eva) via USB-C
 - [ ] Spotify account with active music playback capability
-- [ ] Production stack from [Webserver setup](webserver_setup.md): **Gunicorn** on **5000**, **Nginx** on **52341** (or you understand your own reverse-proxy ports)
+- [ ] Production stack from [Webserver setup](webserver_setup.md): **Gunicorn** on **5000**, **Nginx** with **TLS** on **52341** (or you understand your own reverse-proxy ports)
 
 ## Step 1: Configure Spotify Developer App
 
 1. [ ] Go to https://developer.spotify.com/dashboard
 2. [ ] Create a new app (or use existing)
 3. [ ] Copy the **Client ID** and **Client Secret**
-4. [ ] Add redirect URI: `http://172.16.232.6:52341/spotify/callback`
+4. [ ] Add redirect URI: `https://172.16.232.6:52341/spotify/callback`
    - Click "Edit Settings" in your Spotify app
    - Add the redirect URI exactly as shown above
    - Click "Add" and "Save"
@@ -59,7 +59,7 @@ Add the following content (replace with your actual credentials):
 # Spotify API Credentials
 SPOTIFY_CLIENT_ID = "your_actual_client_id_here"
 SPOTIFY_CLIENT_SECRET = "your_actual_client_secret_here"
-SPOTIFY_REDIRECT_URI = "http://172.16.232.6:52341/spotify/callback"
+SPOTIFY_REDIRECT_URI = "https://172.16.232.6:52341/spotify/callback"
 ```
 
 - [ ] File `spotify_credentials.py` created
@@ -94,16 +94,16 @@ sudo ss -tlnp | grep 5000
 curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5000/spotify/auth
 ```
 
-Expect **302** (redirect to Spotify) if Spotify credentials load, or **503** if disabled — not connection refused. If **52341** returns **502** but **5000** works, fix `sigfox-bridge`, not Nginx.
+Expect **302** (redirect to Spotify) if Spotify credentials load, or **503** if disabled — not connection refused. Use **`https://`** for public URLs; **`http://`** to a private IP is rejected by Spotify (**redirect_uri: Insecure**). If **52341** returns **502** but **5000** works, see [Webserver troubleshooting](webserver_setup.md#troubleshooting) (upstream / `proxy_pass` / Nginx reload).
 
 ### 2.5 Authenticate with Spotify
 
 ```bash
 # From your local machine or browser, visit:
-# http://172.16.232.6:52341/spotify/auth
+# https://172.16.232.6:52341/spotify/auth
 
 # Or use curl:
-curl "http://172.16.232.6:52341/spotify/auth"
+curl "https://172.16.232.6:52341/spotify/auth"
 ```
 
 This will:
@@ -192,16 +192,16 @@ mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
 
 ```bash
 # Test on WC display
-curl "http://172.16.232.6:52341/spotify/wc"
+curl "https://172.16.232.6:52341/spotify/wc"
 
 # Test on Bathroom display
-curl "http://172.16.232.6:52341/spotify/bathroom"
+curl "https://172.16.232.6:52341/spotify/bathroom"
 
 # Test on Eva display
-curl "http://172.16.232.6:52341/spotify/eva"
+curl "https://172.16.232.6:52341/spotify/eva"
 
 # Test on all displays at once
-curl "http://172.16.232.6:52341/spotify/all"
+curl "https://172.16.232.6:52341/spotify/all"
 ```
 
 **Expected Result:**
@@ -215,7 +215,7 @@ curl "http://172.16.232.6:52341/spotify/all"
 
 ```bash
 # Test when no track is playing (stop Spotify)
-curl "http://172.16.232.6:52341/spotify/wc"
+curl "https://172.16.232.6:52341/spotify/wc"
 # Should return: "No track currently playing" (404)
 
 # Test with missing credentials (temporarily rename spotify_credentials.py)
@@ -244,8 +244,8 @@ curl "http://172.16.232.6:52341/spotify/wc"
 
 ### 5.3 Verify Existing Functionality Still Works
 
-- [ ] Timer mode still works: `curl "http://172.16.232.6:52341/sigfox?target=wc&text=Test&duration=10"`
-- [ ] Other presets still work: `curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"`
+- [ ] Timer mode still works: `curl "https://172.16.232.6:52341/sigfox?target=wc&text=Test&duration=10"`
+- [ ] Other presets still work: `curl "https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"`
 - [ ] No regressions in existing features
 
 ## Troubleshooting
@@ -298,12 +298,12 @@ sudo journalctl -u sigfox-bridge -f
 **Test Commands:**
 ```bash
 # Authenticate
-curl "http://172.16.232.6:52341/spotify/auth"
+curl "https://172.16.232.6:52341/spotify/auth"
 
 # Display on WC
-curl "http://172.16.232.6:52341/spotify/wc"
+curl "https://172.16.232.6:52341/spotify/wc"
 
 # Display on all
-curl "http://172.16.232.6:52341/spotify/all"
+curl "https://172.16.232.6:52341/spotify/all"
 ```
 

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Documentation: clarified production ports (**Nginx 52341** → **Gunicorn 5000**), Spotify OAuth redirect URI vs internal port, **502** troubleshooting, and `.spotify_cache` / bridge alignment (`webserver_setup.md`, `spotify_integration.md`, `SPOTIFY_SETUP_CHECKLIST.md`, `webhook_integration.md`, `spotify_mqtt_bridge/README.md`, `architecture.md`, `spotify_credentials.py.template`).
+- Documentation: **HTTPS on 52341** as the documented production default — Nginx TLS example, **`https://`** base URLs in webhooks/checklists, Spotify **redirect_uri: Insecure** (HTTP to private IP), TLS **SAN** for numeric IP (**IP:** not **DNS:**), `curl --cacert` examples, troubleshooting for certificate name mismatch; updates in `webserver_setup.md`, `webhook_integration.md`, `spotify_integration.md`, `SPOTIFY_SETUP_CHECKLIST.md`, `adding_a_new_display.md`, `documentation/README.md`, `architecture.md`, `security.md`, `spotify_credentials.py.template`, `spotify_mqtt_bridge/README.md`.
 
 ## [1.1.0] - 2024-01-18
 

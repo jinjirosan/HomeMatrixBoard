@@ -102,8 +102,8 @@ For detailed security information, see [Security Guide](security.md).
 ### Webserver
 - **Technology**: Flask (Python)
 - **WSGI Server**: Gunicorn
-- **Reverse Proxy**: Nginx
-- **Port**: **5000** (Gunicorn / Flask, internal), **52341** (Nginx, external in documented setup). Public URLs and Spotify redirect URI use the Nginx port, not 5000.
+- **Reverse Proxy**: Nginx (terminates **TLS** on **52341** in the documented setup)
+- **Ports**: **5000** — Gunicorn / Flask (internal, `127.0.0.1`). **52341** — Nginx **HTTPS** for public `/sigfox` and `/spotify/...`. The Spotify **redirect URI** and all browser-facing URLs must use **`https://`** on this port (not `http://` to a private IP — Spotify rejects it as insecure). See [Webserver setup](webserver_setup.md).
 - **Features**:
   - Webhook endpoint: `/sigfox`
   - Spotify endpoints: `/spotify/{target}`, `/spotify/all`, `/spotify/auth`
@@ -115,9 +115,10 @@ For detailed security information, see [Security Guide](security.md).
 - **Port**: 1883
 - **Authentication**: Username/password
 - **Access Control**: ACL-based topic permissions
-- **Users**:
-  - `sigfoxwebhookhost`: Can publish to all display topics
+- **Users** (examples):
+  - `sigfoxwebhookhost`: Can publish to all display topics (and optionally `home/spotify/#` if used for the Spotify MQTT bridge)
   - `wc_display`, `bathroom_display`, `eva_display`: Can only subscribe to their own topics
+  - Optional dedicated users for `home/spotify/#` (bridge write / viewer read) — see [Spotify MQTT broker ACLs](spotify_mqtt_bridge/mqtt_broker.md)
 
 ### Displays
 - **Hardware**: Adafruit MatrixPortal M4

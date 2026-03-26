@@ -18,15 +18,16 @@ Spotify Web API → Flask Webhook → MQTT Broker → MatrixPortal Displays
 3. **MQTT Broker**: Existing infrastructure for message routing
 4. **MatrixPortal Displays**: Existing display hardware (WC, Bathroom, Eva)
 
-### Production web stack (Nginx + Gunicorn)
+### Production web stack (Nginx + Gunicorn + HTTPS)
 
 On the standard deployment ([Webserver setup](webserver_setup.md)):
 
-- **Nginx** listens on **52341** (public). Browsers and `curl` to `http://172.16.232.6:52341/...` hit Nginx first.
-- **Gunicorn** runs Flask on **127.0.0.1:5000**. Nginx forwards requests with `proxy_pass http://127.0.0.1:5000`.
-- **Redirect URI** in the Spotify Developer Dashboard and **`SPOTIFY_REDIRECT_URI`** must use the **public** URL (e.g. `http://172.16.232.6:52341/spotify/callback`), not port **5000**.
+- **Nginx** terminates **TLS** on **52341** (public). Browsers and `curl` use **`https://172.16.232.6:52341/...`** (or your DNS name on that same vhost).
+- **Gunicorn** runs Flask on **127.0.0.1:5000**. Nginx forwards with **`proxy_pass http://127.0.0.1:5000`** (use **IPv4**, not `localhost`, to avoid `[::1]` upstream failures — see [Webserver troubleshooting](webserver_setup.md#troubleshooting)).
+- **Spotify requires HTTPS** for redirect URIs that are not loopback: plain **`http://172.16.x.x/...`** is rejected with **redirect_uri: Insecure**. Register **`https://.../spotify/callback`** in the Spotify Dashboard and set **`SPOTIFY_REDIRECT_URI`** to the **same** string (scheme, host, port, path). Do not use port **5000** in the redirect URI.
+- **TLS certificates:** If the URL uses the **numeric IP**, the server certificate must include an **IP address** SAN (`IP:172.16.232.6`), not `DNS:172.16.232.6`, or clients fail name verification. See [Webserver setup — TLS](webserver_setup.md#5-nginx-configuration-https-on-52341--production).
 - After OAuth, **`.spotify_cache`** is created in the process working directory — for systemd, that is **`WorkingDirectory`** (e.g. `/home/rayf/sigfox_mqtt_bridge`). Run the [Spotify MQTT bridge](spotify_mqtt_bridge/README.md) from the same directory or set **`SPOTIFY_CACHE_PATH`** so the bridge reuses tokens.
-- If you see **502 Bad Gateway** on `:52341`, the backend on **5000** is usually down or misconfigured; see [Webserver troubleshooting](webserver_setup.md#troubleshooting).
+- If you see **502 Bad Gateway** on `:52341`, the backend on **5000** is usually down, **`proxy_pass`** is wrong, or Nginx needs a **reload**; see [Webserver troubleshooting](webserver_setup.md#troubleshooting).
 
 The repository `app.py` uses `app.run(..., port=52341)` only for **local development without Nginx**. On the production VM, use **`sigfox-bridge`** (Gunicorn on **5000**), not a second server bound to **52341** alongside Nginx.
 
@@ -35,7 +36,7 @@ The repository `app.py` uses `app.run(..., port=52341)` only for **local develop
 ### 1. Spotify Developer Account
 - Register at [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 - Create a new app to get Client ID and Client Secret
-- **Set redirect URI**: `http://172.16.232.6:52341/spotify/callback` (or your server URL — the port and path the **browser** uses after Nginx)
+- **Set redirect URI**: `https://172.16.232.6:52341/spotify/callback` (or your HTTPS server URL — must match what the **browser** uses after Nginx, including **https**)
   - This must match exactly in both Spotify dashboard and `spotify_credentials.py`
 
 ### 2. Required Permissions
@@ -208,7 +209,7 @@ sudo systemctl restart sigfox-bridge
   ```python
   SPOTIFY_CLIENT_ID = "your_client_id_here"
   SPOTIFY_CLIENT_SECRET = "your_client_secret_here"
-  SPOTIFY_REDIRECT_URI = "http://172.16.232.6:52341/spotify/callback"
+  SPOTIFY_REDIRECT_URI = "https://172.16.232.6:52341/spotify/callback"
   ```
 
 **Files Updated:**
@@ -256,7 +257,7 @@ sudo systemctl restart sigfox-bridge
 ### 1. Initial Authentication
 ```bash
 # Start OAuth flow (redirects to Spotify login)
-curl "http://172.16.232.6:52341/spotify/auth"
+curl "https://172.16.232.6:52341/spotify/auth"
 
 # After authentication, callback completes automatically
 # Token is cached in .spotify_cache file
@@ -265,18 +266,18 @@ curl "http://172.16.232.6:52341/spotify/auth"
 ### 2. Display Current Track on Specific Display
 ```bash
 # Display on WC
-curl "http://172.16.232.6:52341/spotify/wc"
+curl "https://172.16.232.6:52341/spotify/wc"
 
 # Display on Bathroom
-curl "http://172.16.232.6:52341/spotify/bathroom"
+curl "https://172.16.232.6:52341/spotify/bathroom"
 
 # Display on Eva
-curl "http://172.16.232.6:52341/spotify/eva"
+curl "https://172.16.232.6:52341/spotify/eva"
 ```
 
 ### 3. Display on All Displays
 ```bash
-curl "http://172.16.232.6:52341/spotify/all"
+curl "https://172.16.232.6:52341/spotify/all"
 ```
 
 **Response Format:**
@@ -309,13 +310,13 @@ Create `spotify_credentials.py` in the webserver project root:
 # 1. Go to https://developer.spotify.com/dashboard
 # 2. Create a new app
 # 3. Copy the Client ID and Client Secret
-# 4. Add redirect URI: http://your-server:52341/spotify/callback
+# 4. Add redirect URI: https://your-server:52341/spotify/callback
 #
 # IMPORTANT: Add this file to .gitignore to keep credentials secure!
 
 SPOTIFY_CLIENT_ID = "your_spotify_client_id_here"
 SPOTIFY_CLIENT_SECRET = "your_spotify_client_secret_here"
-SPOTIFY_REDIRECT_URI = "http://172.16.232.6:52341/spotify/callback"  # Update with your server URL
+SPOTIFY_REDIRECT_URI = "https://172.16.232.6:52341/spotify/callback"  # Update with your server URL
 ```
 
 ### Display Settings (Firmware)
@@ -344,16 +345,16 @@ The music preset is configured in each display's `code.py`:
 ### 1. Authentication Test
 ```bash
 # Start OAuth flow (redirects to Spotify login)
-curl "http://172.16.232.6:52341/spotify/auth"
+curl "https://172.16.232.6:52341/spotify/auth"
 
 # After completing OAuth in browser, test display
-curl "http://172.16.232.6:52341/spotify/wc"
+curl "https://172.16.232.6:52341/spotify/wc"
 ```
 
 ### 2. Display Test
 ```bash
 # Test Spotify integration (requires authentication first)
-curl "http://172.16.232.6:52341/spotify/wc"
+curl "https://172.16.232.6:52341/spotify/wc"
 
 # Test music preset directly via MQTT
 mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
@@ -403,7 +404,7 @@ mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
 ### Debug Commands
 ```bash
 # Check Spotify integration status
-curl "http://172.16.232.6:52341/spotify/wc"
+curl "https://172.16.232.6:52341/spotify/wc"
 # Returns 503 if credentials missing, 404 if no track playing, 200 if successful
 
 # Test MQTT connectivity

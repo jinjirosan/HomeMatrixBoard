@@ -3,11 +3,13 @@
 This guide provides the API reference for the webhook endpoints used to control the HomeMatrixBoard displays.
 
 ## Base URL
-- **Production**: `http://172.16.232.6:52341` (Nginx; forwards to Gunicorn/Flask on **127.0.0.1:5000** — see [Webserver setup](webserver_setup.md))
+- **Production**: `https://172.16.232.6:52341` (Nginx **TLS** on 52341; forwards to Gunicorn/Flask on **127.0.0.1:5000** — see [Webserver setup](webserver_setup.md))
 - **Endpoint**: `/sigfox`
 
+**TLS:** Use **`https://`** in URLs. With a **private CA**, use `curl --cacert /path/to/ca.pem` (or install the CA in the system trust store). Browsers must trust the server certificate for `/spotify/auth`.
+
 ## Endpoint
-- **URL**: `http://172.16.232.6:52341/sigfox`
+- **URL**: `https://172.16.232.6:52341/sigfox`
 - **Methods**: GET, POST
 - **Content-Type**: `application/json` (for POST requests)
 
@@ -38,39 +40,39 @@ This guide provides the API reference for the webhook endpoints used to control 
 ### Timer Mode (GET)
 ```bash
 # Start a 60-second timer on WC display
-curl "http://172.16.232.6:52341/sigfox?target=wc&text=Shower&duration=60"
+curl "https://172.16.232.6:52341/sigfox?target=wc&text=Shower&duration=60"
 
 # Start a 60-second timer with URL-encoded text
-curl "http://172.16.232.6:52341/sigfox?target=wc&text=WC%20over&duration=60"
+curl "https://172.16.232.6:52341/sigfox?target=wc&text=WC%20over&duration=60"
 ```
 
 ### Timer Mode (POST)
 ```bash
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","text":"WC over","duration":60}' \
-     http://172.16.232.6:52341/sigfox
+     https://172.16.232.6:52341/sigfox
 ```
 
 ### Preset Mode (GET)
 ```bash
 # Activate "On Air" preset on WC display
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
+curl "https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
 
 # Activate "Score" preset with 1-hour duration
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=score&duration=3600"
+curl "https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=score&duration=3600"
 
 # Activate "Breaking" preset with custom text
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=breaking&name=News%20Flash"
+curl "https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=breaking&name=News%20Flash"
 
 # Reset display
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=reset"
+curl "https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=reset"
 ```
 
 ### Preset Mode (POST)
 ```bash
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","mode":"preset","preset_id":"on_air","duration":3600}' \
-     http://172.16.232.6:52341/sigfox
+     https://172.16.232.6:52341/sigfox
 ```
 
 ### Music Preset Mode (POST only)
@@ -78,7 +80,7 @@ curl -X POST -H "Content-Type: application/json" \
 # Music preset requires POST with JSON body
 curl -X POST -H "Content-Type: application/json" \
      -d '{"target":"wc","mode":"preset","preset_id":"music","artist":"The Beatles","song":"Hey Jude","duration":30}' \
-     http://172.16.232.6:52341/sigfox
+     https://172.16.232.6:52341/sigfox
 ```
 
 ## Available Presets
@@ -143,20 +145,20 @@ The webserver also provides Spotify integration endpoints for automated music di
 
 ### Authentication
 ```bash
-# Initiate Spotify OAuth flow
-curl "http://172.16.232.6:52341/spotify/auth"
+# Initiate Spotify OAuth flow (add --cacert /path/to/ca.pem if using a private CA)
+curl "https://172.16.232.6:52341/spotify/auth"
 # Follow redirect to authenticate, then callback completes authentication
 ```
 
 ### Display Current Track
 ```bash
-# Display current track on specific display
-curl "http://172.16.232.6:52341/spotify/wc"
-curl "http://172.16.232.6:52341/spotify/bathroom"
-curl "http://172.16.232.6:52341/spotify/eva"
+# Display current track on specific display (add --cacert when needed)
+curl "https://172.16.232.6:52341/spotify/wc"
+curl "https://172.16.232.6:52341/spotify/bathroom"
+curl "https://172.16.232.6:52341/spotify/eva"
 
 # Display current track on all displays
-curl "http://172.16.232.6:52341/spotify/all"
+curl "https://172.16.232.6:52341/spotify/all"
 ```
 
 **Note**: Spotify integration requires:
@@ -179,7 +181,7 @@ sudo systemctl restart sigfox-bridge
 - Channel: UPLINK
 - URL Pattern: 
   ```
-  http://172.16.232.6:52341/sigfox
+  https://172.16.232.6:52341/sigfox
   ```
 
 ### Custom Parameters

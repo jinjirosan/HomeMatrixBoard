@@ -261,7 +261,7 @@ Copy the `lib/` folder from the repository if needed.
 
 ```bash
 # Test timer mode via webhook
-curl "http://172.16.232.6:52341/sigfox?target=kitchen&text=Test&duration=10"
+curl "https://172.16.232.6:52341/sigfox?target=kitchen&text=Test&duration=10"
 ```
 
 The display should show a 10-second countdown timer.
@@ -270,16 +270,16 @@ The display should show a 10-second countdown timer.
 
 ```bash
 # Test "On Air" preset
-curl "http://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=on_air"
+curl "https://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=on_air"
 
 # Test "Score" preset
-curl "http://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=score"
+curl "https://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=score"
 
 # Test "Breaking" preset
-curl "http://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=breaking"
+curl "https://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=breaking"
 
 # Test reset
-curl "http://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=reset"
+curl "https://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=reset"
 ```
 
 ### 5.3 Test Direct MQTT (Optional)
@@ -294,7 +294,7 @@ mosquitto_pub -h 172.16.234.55 -u sigfoxwebhookhost -P <password> \
 
 ```bash
 # Test Spotify integration
-curl "http://172.16.232.6:52341/spotify/kitchen"
+curl "https://172.16.232.6:52341/spotify/kitchen"
 ```
 
 ## Step 6: Verify All Systems
@@ -432,13 +432,13 @@ secrets = {
 ### Test Commands
 ```bash
 # Timer mode
-curl "http://172.16.232.6:52341/sigfox?target=kitchen&text=Cooking&duration=30"
+curl "https://172.16.232.6:52341/sigfox?target=kitchen&text=Cooking&duration=30"
 
 # Preset mode
-curl "http://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=on_air"
+curl "https://172.16.232.6:52341/sigfox?target=kitchen&mode=preset&preset_id=on_air"
 
 # Spotify (if enabled)
-curl "http://172.16.232.6:52341/spotify/kitchen"
+curl "https://172.16.232.6:52341/spotify/kitchen"
 ```
 
 ## Related Documentation

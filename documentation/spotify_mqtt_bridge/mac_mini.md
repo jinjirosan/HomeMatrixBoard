@@ -52,7 +52,7 @@ Copy from `spotify_credentials.py.template` and set `SPOTIFY_CLIENT_ID`, `SPOTIF
 
 The bridge needs a valid OAuth token file.
 
-**Typical approach:** Complete OAuth once on your **Flask server** (same repo) using `/spotify/auth`, then copy `.spotify_cache` to the Mac into the **same repo root** as `spotify_credentials.py`.
+**Typical approach:** Complete OAuth once on your **Flask server** (same repo) using **`https://…/spotify/auth`** (production uses **HTTPS** on Nginx — see [Webserver setup](../webserver_setup.md)), then copy `.spotify_cache` to the Mac into the **same repo root** as `spotify_credentials.py`.
 
 Alternatively run the bridge only on the server and run **only the viewer** on the Mac (no Spotify cache needed on the Mac).
 

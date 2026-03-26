@@ -55,9 +55,10 @@ This document outlines security considerations and best practices for the HomeMa
 
 ### OAuth Security
 - **OAuth 2.0**: Uses standard OAuth 2.0 flow
+- **HTTPS redirect URI**: Spotify requires **HTTPS** for redirect URIs that are not `http://localhost` / `http://127.0.0.1`. Terminate TLS on Nginx (e.g. port **52341**); plain **`http://172.16.x.x/...`** is rejected (**redirect_uri: Insecure**).
 - **Token storage**: OAuth tokens stored in `.spotify_cache` file (not in git)
 - **Token refresh**: Tokens automatically refreshed by spotipy library
-- **Redirect URI validation**: Redirect URI must match exactly in Spotify dashboard
+- **Redirect URI validation**: Redirect URI must match **exactly** in Spotify dashboard (scheme, host, port, path)
 
 ### Credential Management
 - **Separate file**: Spotify credentials in `spotify_credentials.py` (not in git)

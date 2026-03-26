@@ -7,12 +7,12 @@ HomeMatrixBoard is a distributed IoT display system that shows countdown timers 
 
 ### Send a Timer
 ```bash
-curl "http://172.16.232.6:52341/sigfox?target=wc&text=Shower&duration=60"
+curl --cacert /path/to/ca.cert.pem 'https://172.16.232.6:52341/sigfox?target=wc&text=Shower&duration=60'
 ```
 
 ### Send a Preset
 ```bash
-curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
+curl --cacert /path/to/ca.cert.pem 'https://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air'
 ```
 
 ## Documentation Structure
@@ -39,7 +39,7 @@ curl "http://172.16.232.6:52341/sigfox?target=wc&mode=preset&preset_id=on_air"
 
 1. **Webserver (172.16.232.6)**
    - Flask application handling webhooks (Gunicorn on **5000** internally)
-   - Optional Spotify integration (public URLs use Nginx on **52341**)
+   - Optional Spotify integration (public URLs use **HTTPS** on Nginx **52341**; see [Webserver setup](webserver_setup.md))
    - Nginx reverse proxy
 
 2. **MQTT Broker (172.16.234.55)**
