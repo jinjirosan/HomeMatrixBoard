@@ -237,11 +237,28 @@ For more detailed API documentation and examples, see [Webhook Integration Guide
 
 ## Troubleshooting
 
-1. **502 Bad Gateway** from Nginx (e.g. `curl http://127.0.0.1:52341/spotify/auth` returns 502):
-   - Nginx is running, but nothing healthy is answering **`proxy_pass`** (default `http://127.0.0.1:5000`).
-   - Check Gunicorn: `sudo systemctl status sigfox-bridge` and `sudo ss -tlnp | grep 5000`.
-   - Test the app **directly**: `curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5000/spotify/auth` — expect **302** when Spotify is configured (or **503** if credentials missing), not connection refused.
-   - If `ss` shows **nginx** on **52341** but nothing on **5000**, start or fix `sigfox-bridge` (see service `ExecStart` bind port vs `proxy_pass`).
+1. **502 Bad Gateway** from Nginx (e.g. `curl` to `http://172.16.232.6:52341/sigfox?...` returns 502):
+
+   **Isolate Flask vs Nginx first** (502 is usually **not** caused by `app.py` if Gunicorn is healthy):
+
+   - Test Gunicorn **directly** with a **quoted** URL (shell treats `&` specially otherwise):
+     ```bash
+     curl -sS -o /dev/null -w "%{http_code}\n" 'http://127.0.0.1:5000/sigfox?target=wc&text=Test&duration=1'
+     ```
+     Expect **200** if MQTT publish succeeds, or **400** if parameters are wrong — **not** connection refused.
+   - If **5000** works but **52341** still returns **502**, the problem is **Nginx → upstream**, not your Python code. Swapping to an older `app.py` will not help.
+
+   **Common upstream causes:**
+
+   - **Nothing on port 5000:** `sudo systemctl status sigfox-bridge` and `sudo ss -tlnp | grep 5000`. Start or fix `sigfox-bridge` so `ExecStart` matches `proxy_pass` (this guide uses `http://127.0.0.1:5000`).
+   - **`proxy_pass http://localhost:5000` and IPv6:** On many Linux systems `localhost` resolves to **`[::1]`** first. Gunicorn with `--bind 0.0.0.0:5000` listens on **IPv4 only**, so Nginx may try **`[::1]:5000`**, get **connection refused**, and return 502. Check:
+     ```bash
+     sudo tail -20 /var/log/nginx/error.log
+     ```
+     If you see `upstream: "http://[::1]:5000/..."` and `connect() failed (111: Connection refused)`, change **`proxy_pass`** to **`http://127.0.0.1:5000`** (as in the Nginx example above), then `sudo nginx -t && sudo systemctl reload nginx`.
+   - **Stale Nginx workers or config not applied:** If Gunicorn is up and `127.0.0.1:5000` responds but **52341** still returns 502, run **`sudo systemctl reload nginx`** or **`sudo systemctl restart nginx`**. Operators have seen 502 persist until reload/restart even when `app.py` was unchanged.
+
+   **Spotify redirect check (optional):** `curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:5000/spotify/auth` — expect **302** when Spotify is configured (or **503** if disabled), not connection refused.
 
 2. Check service status:
    ```bash
