@@ -9,7 +9,6 @@ import supervisor
 import microcontroller
 from adafruit_matrixportal.matrixportal import MatrixPortal
 from adafruit_display_text.label import Label
-from adafruit_display_text.scrolling_label import ScrollingLabel
 import adafruit_minimqtt.adafruit_minimqtt as MQTT
 from adafruit_esp32spi import adafruit_esp32spi_socketpool
 
@@ -33,6 +32,19 @@ RED = 0xFF0000
 WHITE = 0xFFFFFF
 BLACK = 0x000000
 
+# Music: terminalio glyphs ~6px wide; scroll only lines wider than the inner band.
+TEXT_PIXELS_PER_CHAR = 6
+# Pink margin on left and right of the black text band (symmetric, ~2px each).
+MUSIC_H_MARGIN = 2
+MUSIC_INNER_W = DISPLAY_WIDTH - 2 * MUSIC_H_MARGIN
+# 10 × 6px = 60px fills inner band exactly (no extra internal pad → no wide pink gap on the right).
+MUSIC_SCROLL_MAX_CHARS = MUSIC_INNER_W // TEXT_PIXELS_PER_CHAR
+MUSIC_MARQUEE_CHAR_S = 0.1 # target seconds per marquee step (tune with MAX_STEPS below)
+# Catch-up cap per update(): high = fast scroll after mqtt blocks (can look "jumpy"); lower = smoother.
+MUSIC_MARQUEE_MAX_STEPS = 3
+# Song row lower than countdown timer row (y=20) for clearer two-line music layout.
+MUSIC_SONG_LINE_Y = 23
+
 # Enable serial output for debugging
 try:
     supervisor.runtime.serial_connected = True
@@ -54,32 +66,33 @@ class DisplayText:
         self.text_group = displayio.Group()
         self.last_lengths = {}  # Cache for text lengths
         self.last_positions = {}  # Cache for calculated positions
+        # id(Label) -> marquee state for music lines (artist + song)
+        self._marquees = {}
         self.setup_text()
         
     def setup_text(self):
         """Initialize and create text labels"""
-        # Create title label with empty text
+        # Black behind glyphs only; matrix background (e.g. music purple) stays visible elsewhere.
         self.title_label = Label(
             terminalio.FONT,
             text="",
             color=WHITE,
-            background_color=BLACK,  # Add black background for better readability
-            background_tight=False,  # Add padding around text
-            padding_left=1,         # Add left padding
-            padding_right=1,        # Add right padding
+            background_color=BLACK,
+            background_tight=False,
+            padding_left=1,
+            padding_right=1,
             x=0,
             y=8
         )
         
-        # Create timer label
         self.timer_label = Label(
             terminalio.FONT,
             text="",
             color=WHITE,
-            background_color=BLACK,  # Add black background for better readability
-            background_tight=False,  # Add padding around text
-            padding_left=1,         # Add left padding
-            padding_right=1,        # Add right padding
+            background_color=BLACK,
+            background_tight=False,
+            padding_left=1,
+            padding_right=1,
             x=0,
             y=20
         )
@@ -87,7 +100,22 @@ class DisplayText:
         # Add labels to group
         self.text_group.append(self.title_label)
         self.text_group.append(self.timer_label)
-    
+
+    LABEL_PAD_DEFAULT = 1
+
+    def _reset_label_padding(self, label):
+        label.padding_left = self.LABEL_PAD_DEFAULT
+        label.padding_right = self.LABEL_PAD_DEFAULT
+
+    def _layout_music_marquee_label(self, label):
+        """Black band fills MUSIC_INNER_W at x=MUSIC_H_MARGIN; split leftover pad inside label."""
+        gw = MUSIC_SCROLL_MAX_CHARS * TEXT_PIXELS_PER_CHAR
+        extra = MUSIC_INNER_W - gw
+        if extra < 0:
+            extra = 0
+        label.padding_left = extra // 2
+        label.padding_right = extra - label.padding_left
+
     def center_text_position(self, text):
         """Calculate x position to center text"""
         # Use cached position if text length hasn't changed
@@ -104,44 +132,94 @@ class DisplayText:
         self.last_positions[text_len] = center_pos
         return center_pos
     
+    def _remove_scrolling_attachment(self, label):
+        """Detach ScrollingLabel from this row if present."""
+        if hasattr(label, "_scrolling_label"):
+            try:
+                self.text_group.remove(label._scrolling_label)
+            except ValueError:
+                pass
+            delattr(label, "_scrolling_label")
+
+    def clear_scrolling_state(self):
+        self._remove_scrolling_attachment(self.title_label)
+        self._remove_scrolling_attachment(self.timer_label)
+        self._marquees.clear()
+
     def update_text(self, text, label, y_position):
-        """Update text content and position"""
-        # Only update position if text length changed
-        if len(text) != len(label.text):
+        """Static centered text; removes any ScrollingLabel on this row."""
+        self._remove_scrolling_attachment(label)
+        self._marquees.pop(id(label), None)
+        self._reset_label_padding(label)
+        if text != label.text:
             label.x = self.center_text_position(text)
-            print(f"Text length changed, new position: x={label.x} y={label.y}")
+            print(f"Text changed, new position: x={label.x} y={label.y}")
         label.text = text
-    
-    def update_text_with_scrolling(self, text, label, y_position, max_chars=10):
-        """Update text with scrolling if it's too long"""
-        text_width = len(text) * 6
-        max_width = max_chars * 6
-        
-        # Remove old scrolling label if it exists
-        if hasattr(label, '_scrolling_label'):
-            self.text_group.remove(label._scrolling_label)
-            delattr(label, '_scrolling_label')
-        
-        if text_width > max_width:
-            # Use scrolling label for long text
-            scrolling_label = ScrollingLabel(
-                terminalio.FONT,
-                text=text,
-                color=label.color,
-                max_characters=max_chars,
-                animate_time=0.3,
-                x=0,
-                y=y_position
-            )
-            label._scrolling_label = scrolling_label
-            # Hide the regular label and show scrolling one
-            label.text = ""
-            label.x = -1000  # Move off screen
-            if scrolling_label not in self.text_group:
-                self.text_group.append(scrolling_label)
-        else:
-            # Use regular label for short text
-            self.update_text(text, label, y_position)
+        label.y = y_position
+
+    def set_marquee_line(self, text, label, y_position):
+        """Music row: center if it fits; else Label-only character marquee (no BitmapLabel)."""
+        self._remove_scrolling_attachment(label)
+        lid = id(label)
+        self._marquees.pop(lid, None)
+
+        tw = len(text) * TEXT_PIXELS_PER_CHAR
+        if tw <= MUSIC_INNER_W:
+            self._reset_label_padding(label)
+            label.text = text
+            label.y = y_position
+            label.x = MUSIC_H_MARGIN + (MUSIC_INNER_W - tw) // 2
+            return
+
+        sep = "   "
+        loop = text + sep
+        max_ch = MUSIC_SCROLL_MAX_CHARS
+        dbl = loop + loop
+        self._layout_music_marquee_label(label)
+        self._marquees[lid] = {
+            "label": label,
+            "loop": loop,
+            "idx": 0,
+            # Slightly in the past so the first tick_music_marquees() always advances.
+            "next_t": time.monotonic() - MUSIC_MARQUEE_CHAR_S,
+        }
+        label.text = dbl[0:max_ch]
+        label.x = MUSIC_H_MARGIN
+        label.y = y_position
+
+    def tick_music_marquees(self, now):
+        """Advance marquee; multiple steps per call when update() is late (e.g. mqtt loop blocks)."""
+        max_ch = MUSIC_SCROLL_MAX_CHARS
+        dt = MUSIC_MARQUEE_CHAR_S
+        if dt < 0.001:
+            dt = 0.001
+        for lid in list(self._marquees.keys()):
+            try:
+                st = self._marquees[lid]
+                loop = st["loop"]
+                if not loop or len(loop) < 1:
+                    continue
+                overdue = now - st["next_t"]
+                if overdue < 0:
+                    continue
+                wanted = int(overdue / dt) + 1
+                steps = wanted
+                if steps > MUSIC_MARQUEE_MAX_STEPS:
+                    steps = MUSIC_MARQUEE_MAX_STEPS
+                st["next_t"] += steps * dt
+                if st["next_t"] < now:
+                    st["next_t"] = now + dt
+                label = st["label"]
+                st["idx"] = (st["idx"] + steps) % len(loop)
+                dbl = loop + loop
+                i = st["idx"]
+                chunk = dbl[i : i + max_ch]
+                if len(chunk) < max_ch:
+                    chunk = chunk + dbl[: max_ch - len(chunk)]
+                label.text = chunk[:max_ch]
+            except Exception as e:
+                print(f"tick_music_marquees: {e}")
+                self._marquees.pop(lid, None)
 
 class BorderManager:
     def __init__(self, matrixportal):
@@ -422,7 +500,8 @@ class PresetManager:
                 "background": 0x800080,  # Purple background
                 "text": "NO TRACK DATA",  # Error message when no track info
                 "text_color": 0xFFFFFF,  # White text
-                "border_mode": "animated",
+                # Solid only — animated border alternates every 0.2s and looks like blinking.
+                "border_mode": "solid",
                 "border_color": 0xFF00FF,  # Magenta border
                 "show_radio": False
             }
@@ -485,6 +564,8 @@ class CountdownDisplay:
         self.connection_quality = 100  # Track connection quality (percentage)
         self.message_counter = 0  # Track total messages
         self.failed_message_counter = 0  # Track failed messages
+        # Never mqtt.publish from on_message — can deadlock / block loop() on ESP32SPI.
+        self._mqtt_ack_queue = []
 
         print("Initializing display...")
         try:
@@ -625,9 +706,9 @@ class CountdownDisplay:
         """Check and maintain WiFi connection with exponential backoff"""
         current_time = time.monotonic()
         
-        # Only check periodically
+        # Only check periodically — throttled must not abort the whole update() (MQTT + UI).
         if current_time - self.last_wifi_check < self.get_retry_interval(self.wifi_retry_count):
-            return False
+            return True
 
         self.last_wifi_check = current_time
         
@@ -674,9 +755,9 @@ class CountdownDisplay:
         """Check and maintain MQTT connection with exponential backoff"""
         current_time = time.monotonic()
         
-        # Only check periodically
+        # Only check periodically — throttled must not abort the whole update() (MQTT + UI).
         if current_time - self.last_mqtt_check < self.get_retry_interval(self.mqtt_retry_count):
-            return False
+            return True
 
         self.last_mqtt_check = current_time
         
@@ -819,6 +900,37 @@ class CountdownDisplay:
         # Update connection quality based on message success rate
         self.connection_quality = self.get_message_success_rate()
 
+    def _queue_mqtt_ack(self, message_id, status, error=None):
+        """Queue ack for publish after mqtt.loop() — publishing inside on_message can hang the client."""
+        if len(self._mqtt_ack_queue) > 16:
+            self._mqtt_ack_queue.pop(0)
+        self._mqtt_ack_queue.append(
+            {"message_id": message_id, "status": status, "error": error}
+        )
+
+    def _flush_mqtt_ack_queue(self):
+        if not self._mqtt_ack_queue:
+            return
+        if not self.mqtt_client or not self.mqtt_client.is_connected():
+            return
+        pending = self._mqtt_ack_queue
+        self._mqtt_ack_queue = []
+        for item in pending:
+            try:
+                payload = {
+                    "message_id": item["message_id"],
+                    "status": item["status"],
+                    "timestamp": time.monotonic(),
+                }
+                if item.get("error"):
+                    payload["error"] = item["error"]
+                self.mqtt_client.publish(
+                    f"{secrets['mqtt_topic']}/ack",
+                    json.dumps(payload),
+                )
+            except Exception as e:
+                print(f"Ack publish failed: {e}")
+
     def on_message(self, client, topic, message):
         """Handle incoming MQTT messages with acknowledgment"""
         print("\n=== New Message Received ===")
@@ -829,146 +941,174 @@ class CountdownDisplay:
         self.last_message_received = time.monotonic()
         
         try:
-            # Parse the JSON message
+            if isinstance(message, bytes):
+                message = message.decode("utf-8")
             data = json.loads(message)
-            
-            # Process the message
             success = self.process_message(data)
-            
-            # Send acknowledgment if message_id is present
             message_id = data.get("message_id")
-            if message_id and success:
-                ack_data = {
-                    "message_id": message_id,
-                    "status": "success",
-                    "timestamp": time.monotonic()
-                }
-                self.mqtt_client.publish(
-                    f"{secrets['mqtt_topic']}/ack",
-                    json.dumps(ack_data)
-                )
-            elif message_id:
-                self.failed_message_counter += 1
-                ack_data = {
-                    "message_id": message_id,
-                    "status": "failed",
-                    "timestamp": time.monotonic()
-                }
-                self.mqtt_client.publish(
-                    f"{secrets['mqtt_topic']}/ack",
-                    json.dumps(ack_data)
-                )
+            if message_id:
+                if success:
+                    self._queue_mqtt_ack(message_id, "success")
+                else:
+                    self.failed_message_counter += 1
+                    self._queue_mqtt_ack(message_id, "failed")
                     
         except Exception as e:
             print(f"Error processing message: {e}")
             self.failed_message_counter += 1
-            if "message_id" in locals():
-                try:
-                    self.mqtt_client.publish(
-                        f"{secrets['mqtt_topic']}/ack",
-                        json.dumps({
-                            "message_id": message_id,
-                            "status": "error",
-                            "error": str(e),
-                            "timestamp": time.monotonic()
-                        })
-                    )
-                except Exception as pub_error:
-                    print(f"Error publishing error acknowledgment: {pub_error}")
+            try:
+                raw = message.decode("utf-8") if isinstance(message, bytes) else str(message)
+                mid = json.loads(raw).get("message_id")
+            except Exception:
+                mid = None
+            if mid:
+                self._queue_mqtt_ack(mid, "error", str(e))
         print("=========================\n")
+
+    def flatten_mqtt_payload(self, data):
+        """Accept Flask / HTTP shapes: nested ``track.{artist,song,title}``, infer music preset.
+
+        Example MQTT body::
+            {"status": "success", "track": {"artist": "A", "song": "B"}}
+        becomes usable ``mode``/``preset_id``/top-level artist & song.
+        """
+        if not isinstance(data, dict):
+            return {}
+        d = dict(data)
+        tr = d.get("track")
+        if isinstance(tr, dict):
+            for k in ("artist", "song", "title", "album"):
+                v = tr.get(k)
+                if v is None:
+                    continue
+                if isinstance(v, str):
+                    v = v.strip()
+                else:
+                    v = str(v).strip()
+                top = d.get(k)
+                if top is None or (isinstance(top, str) and not str(top).strip()):
+                    d[k] = v
+        has_info = bool(
+            str(d.get("artist") or "").strip()
+            or str(d.get("song") or "").strip()
+            or str(d.get("title") or "").strip()
+        )
+        rm = d.get("mode")
+        if has_info:
+            if rm is None or (isinstance(rm, str) and not rm.strip()):
+                d["mode"] = "preset"
+                d["preset_id"] = str(d.get("preset_id") or "music").lower().strip()
+            elif isinstance(rm, str) and rm.strip().lower() == "preset":
+                if not d.get("preset_id"):
+                    d["preset_id"] = "music"
+        return d
 
     def process_message(self, data):
         """Process the message and return success status"""
         try:
-            # Clear any existing displays
+            data = self.flatten_mqtt_payload(data)
+            raw_mode = data.get("mode", "timer")
+            if not isinstance(raw_mode, str):
+                raw_mode = "timer"
+            mode = raw_mode.strip().lower()
+
+            # Validate before clearing UI (bad/retained MQTT was wiping the screen for Spotify-only use).
+            if mode == "timer":
+                if "name" not in data or "duration" not in data:
+                    print("Ignoring MQTT timer: missing name or duration")
+                    return False
+                try:
+                    tdur = int(data["duration"])
+                except (TypeError, ValueError):
+                    print("Ignoring MQTT timer: invalid duration")
+                    return False
+                if tdur <= 0:
+                    print("Ignoring MQTT timer: duration must be positive")
+                    return False
+            elif mode == "preset":
+                if "preset_id" not in data or data.get("preset_id") is None:
+                    print("Ignoring MQTT preset: missing preset_id")
+                    return False
+                pid = str(data["preset_id"]).lower().strip()
+                if pid not in self.preset_manager.presets:
+                    print(f"Ignoring MQTT preset: unknown preset_id {data.get('preset_id')!r}")
+                    return False
+                data = dict(data)
+                data["preset_id"] = pid
+            else:
+                print(f"Ignoring MQTT: unknown mode {raw_mode!r}")
+                return False
+
+            # Safe to reset — message is actionable
             self.timer_manager.current_countdown = None
             self.timer_manager.stopwatch_start = None
             self.timer_manager.done_start = None
             self.preset_manager.clear_preset()
-            
-            # Reset display to default state
+
+            self.text_manager.clear_scrolling_state()
             self.text_manager.update_text("", self.text_manager.title_label, 8)
             self.text_manager.update_text("", self.text_manager.timer_label, 20)
             self.border_manager.clear_border()
-            
-            # Hide radio symbol by default
+
             self.preset_manager.radio_group.hidden = True
-            
-            # Check message mode (defaults to "timer" for backward compatibility)
-            mode = data.get("mode", "timer")
-            
+
             if mode == "timer":
-                # Set default colors for timer mode
                 self.set_background(BLACK)
                 self.text_manager.title_label.color = WHITE
                 self.text_manager.timer_label.color = WHITE
-                self.border_manager.border_palette[1] = RED  # Reset border to default red
-                
-                if "name" in data and "duration" in data:
-                    if self.timer_manager.start_countdown(data["name"], data["duration"]):
-                        self.text_manager.update_text(data["name"], self.text_manager.title_label, 8)
-                        self.border_manager.set_solid_border()
-                        print("Countdown started successfully")
-            elif mode == "preset":
-                if "preset_id" in data:
-                    name = data.get("name", "")  # Optional name override
-                    duration = data.get("duration")  # Optional duration
-                    artist = data.get("artist", "")  # Optional artist (for music preset)
-                    song = data.get("song", "")  # Optional song (for music preset)
-                    
-                    if self.preset_manager.start_preset(data["preset_id"], name, duration):
-                        preset_config = self.preset_manager.presets[data["preset_id"]]
-                        
-                        # First set the background color
-                        self.set_background(preset_config["background"])
-                        
-                        # Special handling for music preset - two lines with scrolling
-                        if data["preset_id"] == "music":
-                            # Use two lines: artist on top, song on bottom
-                            display_artist = artist if artist else "Unknown Artist"
-                            display_song = song if song else "Unknown Song"
-                            
-                            self.text_manager.title_label.color = preset_config["text_color"]
-                            self.text_manager.timer_label.color = preset_config["text_color"]
-                            
-                            # Use scrolling for long text (max 10 chars per line for 64px width)
-                            self.text_manager.update_text_with_scrolling(
-                                display_artist, 
-                                self.text_manager.title_label, 
-                                8, 
-                                max_chars=10
-                            )
-                            self.text_manager.update_text_with_scrolling(
-                                display_song, 
-                                self.text_manager.timer_label, 
-                                20, 
-                                max_chars=10
-                            )
-                        else:
-                            # Regular preset handling
-                            display_text = name if name else preset_config["text"]
-                            self.text_manager.title_label.color = preset_config["text_color"]
-                            self.text_manager.update_text(display_text, self.text_manager.title_label, 8)
-                            
-                            # Clear timer text
-                            self.text_manager.timer_label.color = preset_config["text_color"]
-                            self.text_manager.update_text("", self.text_manager.timer_label, 20)
-                        
-                        # Set border color and mode
-                        self.border_manager.border_palette[1] = preset_config["border_color"]
-                        if preset_config["border_mode"] == "solid":
-                            self.border_manager.set_solid_border()
-                        elif preset_config["border_mode"] == "animated":
-                            self.border_manager.set_animated()
-                        elif preset_config["border_mode"] == "blinking":
-                            self.border_manager.set_blinking()
-                        
-                        # Show/hide radio symbol based on preset configuration
-                        self.preset_manager.radio_group.hidden = not preset_config.get("show_radio", False)
-                        
-                        print(f"Preset {data['preset_id']} started successfully")
-            return True  # Return True if message was processed successfully
-            
+                self.border_manager.border_palette[1] = RED
+
+                if self.timer_manager.start_countdown(data["name"], int(data["duration"])):
+                    self.text_manager.update_text(data["name"], self.text_manager.title_label, 8)
+                    self.border_manager.set_solid_border()
+                    print("Countdown started successfully")
+                return True
+
+            # mode == preset
+            name = data.get("name", "")
+            duration = data.get("duration")
+            artist = (data.get("artist") or "").strip()
+            song = (data.get("song") or data.get("title") or "").strip()
+            pid = data["preset_id"]
+
+            if not self.preset_manager.start_preset(pid, name, duration):
+                print(f"start_preset failed for {pid!r}")
+                return False
+
+            preset_config = self.preset_manager.presets[pid]
+            self.set_background(preset_config["background"])
+
+            if pid == "music":
+                display_artist = artist if artist else "Unknown Artist"
+                display_song = song if song else "Unknown Song"
+                self.text_manager.title_label.color = preset_config["text_color"]
+                self.text_manager.timer_label.color = preset_config["text_color"]
+                # Label + char marquees only (BitmapLabel scrollers OOM / fail after set_background).
+                self.text_manager.set_marquee_line(
+                    display_artist, self.text_manager.title_label, 8
+                )
+                self.text_manager.set_marquee_line(
+                    display_song, self.text_manager.timer_label, MUSIC_SONG_LINE_Y
+                )
+            else:
+                display_text = name if name else preset_config["text"]
+                self.text_manager.title_label.color = preset_config["text_color"]
+                self.text_manager.update_text(display_text, self.text_manager.title_label, 8)
+                self.text_manager.timer_label.color = preset_config["text_color"]
+                self.text_manager.update_text("", self.text_manager.timer_label, 20)
+
+            self.border_manager.border_palette[1] = preset_config["border_color"]
+            if preset_config["border_mode"] == "solid":
+                self.border_manager.set_solid_border()
+            elif preset_config["border_mode"] == "animated":
+                self.border_manager.set_animated()
+            elif preset_config["border_mode"] == "blinking":
+                self.border_manager.set_blinking()
+
+            self.preset_manager.radio_group.hidden = not preset_config.get("show_radio", False)
+            print(f"Preset {pid} started successfully")
+            return True
+
         except Exception as e:
             print(f"Error processing message: {e}")
             return False
@@ -996,7 +1136,7 @@ class CountdownDisplay:
         # Process MQTT messages with improved error handling
         if self.mqtt_client and self.mqtt_client.is_connected():
             try:
-                self.mqtt_client.loop(timeout=1.0)  # Match socket timeout
+                self.mqtt_client.loop(timeout=1.0)
             except OSError as e:
                 if "Failed to send" in str(e):
                     # Enhanced logging for socket failures
@@ -1019,6 +1159,7 @@ class CountdownDisplay:
                         print(f"Error during disconnect: {disc_error}")
                 elif "pystack" not in str(e):  # Only log non-pystack errors
                     print(f"Error in MQTT loop: {e}")
+            self._flush_mqtt_ack_queue()
 
         # Update display state regardless of network status
         try:
@@ -1071,9 +1212,14 @@ class CountdownDisplay:
                     if state["type"] == "preset_end":
                         # Clear display when preset expires
                         self.border_manager.clear_border()
+                        self.text_manager.clear_scrolling_state()
                         self.text_manager.update_text("", self.text_manager.title_label, 8)
                         self.text_manager.update_text("", self.text_manager.timer_label, 20)
                         self.set_background(BLACK)
+                self.border_manager.update_animation(current_time)
+                # Use fresh monotonic() — current_time was taken before mqtt loop, so next_t from
+                # process_message can be ahead of current_time and stall the first many ticks.
+                self.text_manager.tick_music_marquees(time.monotonic())
                 return
             
             # Update timer state
@@ -1113,12 +1259,14 @@ class CountdownDisplay:
                 elif not state:
                     # Clear everything if no active countdown or stopwatch
                     self.border_manager.clear_border()
+                    self.text_manager.clear_scrolling_state()
                     self.text_manager.update_text("", self.text_manager.title_label, 8)
                     self.text_manager.update_text("", self.text_manager.timer_label, 20)
             
             # Update border animation independently (only if not in DONE state)
             if not (state and state["type"] == "done"):
                 self.border_manager.update_animation(current_time)
+            self.text_manager.tick_music_marquees(time.monotonic())
                 
         except Exception as e:
             print(f"Error in display update: {e}")
