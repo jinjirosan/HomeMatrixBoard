@@ -7,6 +7,7 @@ These guides describe how to run the **Spotify MQTT bridge** (`spotify/bridge.py
 | Guide | Purpose |
 |--------|---------|
 | [MQTT broker setup](mqtt_broker.md) | Mosquitto users, ACLs, topics, verification with `mosquitto_sub` / `mosquitto_pub` |
+| [Always-on Linux bridge host](bridge_host.md) | Deploy `spotify.bridge` on a server (e.g. LAN appliance), credentials, systemd |
 | [Mac Mini setup](mac_mini.md) | Python, credentials, running bridge and viewer on macOS |
 | [Raspberry Pi setup](raspberry_pi.md) | OS packages, HDMI/TV viewer, optional systemd service for the bridge |
 

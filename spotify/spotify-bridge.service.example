@@ -1,0 +1,27 @@
+# Example systemd unit for spotify.bridge on an always-on Linux host.
+#
+# Install:
+#   sudo cp spotify/spotify-bridge.service.example /etc/systemd/system/spotify-bridge.service
+#   sudo nano /etc/systemd/system/spotify-bridge.service   # fix User, paths
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now spotify-bridge.service
+#
+# Requires: mqtt_credentials.py and spotify_credentials.py in WorkingDirectory,
+#           and a valid .spotify_cache (or SPOTIFY_CACHE_PATH).
+
+[Unit]
+Description=HomeMatrixBoard Spotify → MQTT bridge (now playing + LRCLIB lyrics)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_LINUX_USER
+WorkingDirectory=/opt/HomeMatrixBoard
+Environment=SPOTIFY_CACHE_PATH=/opt/HomeMatrixBoard/.spotify_cache
+ExecStart=/opt/HomeMatrixBoard/.venv/bin/python3 -m spotify.bridge --interval 1.0
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
