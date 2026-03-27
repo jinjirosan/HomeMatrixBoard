@@ -3,7 +3,7 @@
 ## Overview
 This document outlines the implementation of Spotify integration to display currently playing tracks on the HomeMatrixBoard LED matrix displays. The integration allows real-time display of artist and song information from Spotify across any or all configured displays.
 
-For **MQTT topics** (`home/spotify/#`), the **Spotify MQTT bridge**, and install steps for **Mac Mini**, **Raspberry Pi**, and **Mosquitto ACLs**, see the dedicated guides under [Spotify MQTT bridge](spotify_mqtt_bridge/README.md).
+For **MQTT topics** (`home/spotify/#`), the **Spotify MQTT bridge**, and install steps for **Mac Mini**, **Raspberry Pi**, and **Mosquitto ACLs**, see the dedicated guides under [Spotify MQTT bridge](spotify_mqtt_bridge/README.md). A common layout is to run **`spotify.bridge` on the same webserver** (`172.16.232.6`, `~/sigfox_mqtt_bridge`) as Flask so it shares **`.spotify_cache`** and outbound internet; see [Always-on Linux bridge host](spotify_mqtt_bridge/bridge_host.md) (section *Recommended: bridge on the webserver*) and [Webserver setup — §7](webserver_setup.md#7-spotify-mqtt-bridge-lyrics-on-this-same-host).
 
 ## Architecture
 

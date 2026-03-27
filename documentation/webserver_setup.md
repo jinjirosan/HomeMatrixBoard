@@ -318,9 +318,22 @@ For more detailed API documentation and examples, see [Webhook Integration Guide
    sudo systemctl restart sigfox-bridge
    ```
 
+### 7. Spotify MQTT bridge (lyrics) on this same host
+
+To publish **`home/spotify/#`** (now playing + LRCLIB synced lyrics) from **`172.16.232.6`**:
+
+1. Place the **`spotify/`** package under **`~/sigfox_mqtt_bridge`** next to `app.py`.
+2. In the **same** venv: `pip install -r spotify/requirements.txt`.
+3. Reuse **`spotify_credentials.py`** and **`.spotify_cache`** after **`/spotify/auth`** (same `WorkingDirectory` as Gunicorn).
+4. MQTT user in **`mqtt_credentials.py`** must be allowed to **publish** `home/spotify/#` on the broker (often extend the webhook user; see [Spotify MQTT broker ACLs](spotify_mqtt_bridge/mqtt_broker.md)).
+5. Optional systemd: **`spotify/spotify-bridge.sigfox-webhost.service.example`** → `/etc/systemd/system/spotify-bridge.service`.
+
+Full steps: [Always-on Linux bridge host](spotify_mqtt_bridge/bridge_host.md).
+
 ## Related Documentation
 
 - [Webhook Integration](webhook_integration.md) - API reference for webhook endpoints
 - [MQTT Broker Setup](mqtt_broker_setup.md) - MQTT broker configuration
 - [Spotify Integration](spotify_integration.md) - Optional Spotify integration setup
+- [Spotify MQTT bridge](spotify_mqtt_bridge/README.md) - Lyrics topics, viewer, bridge on webserver or appliance
 - [Architecture](architecture.md) - System architecture overview

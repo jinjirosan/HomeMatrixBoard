@@ -1,8 +1,24 @@
 # Always-on Linux host — Spotify MQTT bridge
 
-Run **`spotify/bridge.py`** on a machine that is always on, has **internet** (Spotify API + LRCLIB), and can reach your **MQTT broker** — for example `172.16.232.6` in your network.
+Run **`spotify/bridge.py`** on a machine that is always on, has **internet** (Spotify API + LRCLIB), and can reach your **MQTT broker** — for example **`172.16.232.6`** (the same webserver that runs Flask/Gunicorn for `/spotify/...` and `/sigfox`).
 
 The **matrix firmware does not use lyrics**; it only needs your existing display command topic. Lyrics go to `home/spotify/#` for **viewer** apps (Mac test, then Raspberry Pi + HDMI TV).
+
+### Recommended: bridge on the webserver (`~/sigfox_mqtt_bridge`)
+
+If Flask already lives at **`/home/rayf/sigfox_mqtt_bridge`** (see [Webserver setup](../webserver_setup.md)):
+
+1. Copy the **`spotify/`** directory from the repo into that folder (same level as `app.py`).
+2. Install bridge dependencies into the **existing** venv (the one Gunicorn uses):
+   ```bash
+   cd ~/sigfox_mqtt_bridge && source venv/bin/activate && pip install -r spotify/requirements.txt
+   ```
+3. Reuse **`spotify_credentials.py`** and **`.spotify_cache`** from OAuth via **`/spotify/auth`** — no second OAuth if the cache file stays in `WorkingDirectory`.
+4. Ensure **`mqtt_credentials.py`** points at your broker (e.g. `172.16.234.55`) and the MQTT user is allowed to **publish** `home/spotify/#` (see [mqtt_broker.md](mqtt_broker.md)). If you use a dedicated `spotify_bridge` user, pass `--mqtt-user` / `--mqtt-password` on `ExecStart` or split credentials (same pattern as `--broker` override in the example unit).
+5. Run manually: `cd ~/sigfox_mqtt_bridge && source venv/bin/activate && python3 -m spotify.bridge --broker 172.16.234.55`  
+   Or install systemd from **`spotify/spotify-bridge.sigfox-webhost.service.example`** (edit `User`, paths, and `--broker` if needed).
+
+Flask and the bridge are **separate processes**; only **Gunicorn** must be running for the website. The bridge needs a valid **`.spotify_cache`** and outbound HTTPS to Spotify and **lrclib.net**.
 
 ## What is already implemented in the repo
 
@@ -52,8 +68,9 @@ The bridge uses Spotipy’s OAuth cache file (default: repo root `.spotify_cache
 
 **Typical approaches:**
 
-1. Complete OAuth once using your existing **Flask** flow (see [Spotify integration](../spotify_integration.md) — `/spotify/auth`), then **copy** `.spotify_cache` to the bridge host next to `spotify_credentials.py` (same redirect URI / app as used for auth).
-2. Or run a **one-off** Spotipy auth on the bridge machine if you can open the redirect URL in a browser that reaches your Spotify app’s redirect URI.
+1. **Same host as Flask:** Complete OAuth once with **`/spotify/auth`** (see [Spotify integration](../spotify_integration.md)). The cache is written under the Flask **`WorkingDirectory`** (e.g. `~/sigfox_mqtt_bridge`). Run **`spotify.bridge`** from that same directory (or set **`SPOTIFY_CACHE_PATH`** to that file) — **no copy step**.
+2. **Bridge on another machine:** Copy **`.spotify_cache`** next to **`spotify_credentials.py`** on that host (same Spotify app / redirect URI as used for auth), or complete a one-off Spotipy auth there.
+3. Or run a **one-off** Spotipy auth on the bridge machine if you can open the redirect URL in a browser that reaches your Spotify app’s redirect URI.
 
 Without a valid cache, the bridge cannot call Spotify.
 
@@ -86,7 +103,10 @@ You should see `now_playing`, `lyrics/track` (on track change, retained), and `l
 
 ## 3. systemd (optional)
 
-Copy `spotify/spotify-bridge.service.example` to `/etc/systemd/system/spotify-bridge.service`, edit `User`, `WorkingDirectory`, and `Environment` paths, then:
+- **Generic clone path:** `spotify/spotify-bridge.service.example`
+- **Same VM as sigfox Flask (`~/sigfox_mqtt_bridge`):** `spotify/spotify-bridge.sigfox-webhost.service.example`
+
+Copy the chosen file to `/etc/systemd/system/spotify-bridge.service`, edit `User`, `WorkingDirectory`, `ExecStart`, and `Environment`, then:
 
 ```bash
 sudo systemctl daemon-reload

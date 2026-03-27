@@ -1,4 +1,5 @@
-# Example systemd unit for spotify.bridge on an always-on Linux host.
+# Example systemd unit for spotify.bridge on an always-on Linux host (e.g. /opt/HomeMatrixBoard).
+# For Flask + Gunicorn on ~/sigfox_mqtt_bridge, use spotify-bridge.sigfox-webhost.service.example instead.
 #
 # Install:
 #   sudo cp spotify/spotify-bridge.service.example /etc/systemd/system/spotify-bridge.service

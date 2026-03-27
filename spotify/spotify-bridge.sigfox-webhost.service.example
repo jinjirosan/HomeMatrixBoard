@@ -1,0 +1,33 @@
+# Example systemd unit: Spotify MQTT bridge on the SAME host as Flask/Gunicorn
+# (e.g. Debian VM 172.16.232.6, app lives in ~/sigfox_mqtt_bridge).
+#
+# Prerequisites on that host:
+#   - spotify/ package next to app.py (same layout as the git repo)
+#   - venv with: pip install -r spotify/requirements.txt
+#   - mqtt_credentials.py, spotify_credentials.py, .spotify_cache in WorkingDirectory
+#   - MQTT user may PUBLISH home/spotify/# (extend ACL or use spotify_bridge user)
+#
+# Install:
+#   sudo cp spotify/spotify-bridge.sigfox-webhost.service.example /etc/systemd/system/spotify-bridge.service
+#   sudo nano /etc/systemd/system/spotify-bridge.service   # set User, paths, broker override if needed
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now spotify-bridge.service
+#   sudo journalctl -u spotify-bridge.service -f
+
+[Unit]
+Description=HomeMatrixBoard Spotify → MQTT bridge (lyrics + now playing)
+After=network-online.target sigfox-bridge.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rayf
+WorkingDirectory=/home/rayf/sigfox_mqtt_bridge
+Environment=SPOTIFY_CACHE_PATH=/home/rayf/sigfox_mqtt_bridge/.spotify_cache
+# Uses the same venv as sigfox-bridge (install spotify/requirements.txt there).
+ExecStart=/home/rayf/sigfox_mqtt_bridge/venv/bin/python3 -m spotify.bridge --interval 1.0 --broker 172.16.234.55
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
